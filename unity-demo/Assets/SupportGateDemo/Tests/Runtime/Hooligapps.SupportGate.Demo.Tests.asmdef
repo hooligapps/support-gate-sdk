@@ -1,0 +1,27 @@
+{
+  "name": "Hooligapps.SupportGate.Demo.Tests",
+  "rootNamespace": "Hooligapps.SupportGate.Demo.Tests",
+  "references": [
+    "Hooligapps.SupportGate.Core",
+    "Hooligapps.SupportGate.UI",
+    "Hooligapps.SupportGate.UI.UGUI",
+    "Hooligapps.SupportGate.UI.UIToolkit",
+    "Hooligapps.SupportGate.Demo",
+    "UnityEngine.UI",
+    "UnityEngine.TestRunner",
+    "UnityEditor.TestRunner"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "nunit.framework.dll"
+  ],
+  "autoReferenced": false,
+  "defineConstraints": [
+    "UNITY_INCLUDE_TESTS"
+  ],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

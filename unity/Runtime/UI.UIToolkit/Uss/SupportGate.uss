@@ -1,0 +1,106 @@
+/* Оформление формы. Подключается к панели игрой; чтобы заменить своим, добавьте
+   свой стиль после этого — правила с той же специфичностью перекрывают. */
+
+.sg-root {
+    width: 560px;
+    max-width: 96%;
+    padding: 16px;
+    background-color: rgb(255, 255, 255);
+    border-radius: 10px;
+    color: rgb(17, 24, 28);
+}
+
+.sg-title {
+    font-size: 18px;
+    -unity-font-style: bold;
+    margin-bottom: 12px;
+}
+
+.sg-banner {
+    padding: 8px 10px;
+    margin-bottom: 10px;
+    background-color: rgb(253, 236, 234);
+    color: rgb(197, 34, 31);
+    border-radius: 8px;
+    white-space: normal;
+}
+
+.sg-state {
+    padding: 24px 8px;
+    -unity-text-align: middle-center;
+    color: rgb(92, 107, 115);
+    white-space: normal;
+}
+
+.sg-field {
+    margin-bottom: 10px;
+}
+
+.sg-multiline {
+    min-height: 96px;
+}
+
+.sg-error {
+    margin-left: 4px;
+    font-size: 11px;
+    color: rgb(197, 34, 31);
+    white-space: normal;
+}
+
+.sg-attachments {
+    margin-top: 4px;
+}
+
+.sg-attachment {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 0;
+    border-top-width: 1px;
+    border-top-color: rgb(215, 222, 227);
+}
+
+.sg-attachment-name {
+    flex-grow: 1;
+    overflow: hidden;
+}
+
+.sg-attachment-status {
+    color: rgb(92, 107, 115);
+    font-size: 11px;
+    margin-right: 8px;
+}
+
+.sg-footer {
+    flex-direction: row;
+    justify-content: flex-end;
+    margin-top: 14px;
+}
+
+.sg-button {
+    padding: 6px 14px;
+    margin-left: 8px;
+    border-radius: 8px;
+}
+
+.sg-primary {
+    background-color: rgb(31, 111, 235);
+    color: rgb(255, 255, 255);
+}
+
+.sg-hint {
+    margin-top: 4px;
+    font-size: 11px;
+    color: rgb(92, 107, 115);
+    white-space: normal;
+}
+
+/* Языки с письмом справа налево: направление отдаёт сервер (direction: rtl). */
+.sg-rtl Label {
+    -unity-text-align: middle-right;
+}
+
+.sg-rtl .sg-attachment,
+.sg-rtl .sg-footer {
+    flex-direction: row-reverse;
+}

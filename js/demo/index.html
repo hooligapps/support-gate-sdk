@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Support Gate — демо</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 32px;
+        font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        max-width: 720px;
+      }
+      label { display: block; margin: 12px 0 4px; font-weight: 500; }
+      input { width: 100%; padding: 8px 10px; font: inherit; box-sizing: border-box; }
+      .actions { margin-top: 20px; display: flex; gap: 8px; }
+      button { padding: 9px 16px; font: inherit; cursor: pointer; }
+      #embed { margin-top: 24px; border: 1px solid #d7dee3; border-radius: 10px; }
+      p.note { color: #5c6b73; }
+    </style>
+  </head>
+  <body>
+    <h1>Support Gate — демо</h1>
+    <p class="note">
+      В проде токен сессии выпускает бэкенд игры своим секретом (JWT HS256, 15 минут).
+      Локально его отдаёт <code>POST /v1/dev/token</code> — ручка включена только при
+      <code>SG_ENV=local</code>. Кнопка ниже дёргает её за вас; готовый токен можно
+      вставить и руками.
+    </p>
+
+    <label for="endpoint">Адрес сервиса</label>
+    <input id="endpoint" value="http://127.0.0.1:8000" />
+
+    <label for="game">Игра</label>
+    <input id="game" value="demo" />
+
+    <label for="token">Session token</label>
+    <input id="token" placeholder="eyJhbGciOiJIUzI1NiIs..." />
+
+    <div class="actions">
+      <button id="issue">Получить токен (local)</button>
+      <button id="open">Открыть окно</button>
+      <button id="inline">Встроить в страницу</button>
+    </div>
+
+    <div id="embed"></div>
+
+    <script src="../dist/support_gate.js"></script>
+    <script>
+      function init() {
+        SupportGate.init({
+          endpoint: document.getElementById('endpoint').value.trim(),
+          token: document.getElementById('token').value.trim(),
+        });
+      }
+
+      document.getElementById('issue').addEventListener('click', async function () {
+        const endpoint = document.getElementById('endpoint').value.trim();
+        const response = await fetch(endpoint + '/v1/dev/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            game_id: document.getElementById('game').value.trim(),
+            user_id: 'demo-player',
+            context: { locale: 'ru', platform: 'web' },
+          }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          alert('не выдали токен: ' + JSON.stringify(payload));
+          return;
+        }
+        document.getElementById('token').value = payload.token;
+      });
+
+      document.getElementById('open').addEventListener('click', function () {
+        init();
+        SupportGate.open({
+          onResult: function (result) {
+            console.log('итог окна', result);
+          },
+        });
+      });
+
+      document.getElementById('inline').addEventListener('click', function () {
+        init();
+        SupportGate.mount(document.getElementById('embed'));
+      });
+    </script>
+  </body>
+</html>

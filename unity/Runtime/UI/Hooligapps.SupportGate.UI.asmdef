@@ -1,0 +1,16 @@
+{
+  "name": "Hooligapps.SupportGate.UI",
+  "rootNamespace": "Hooligapps.SupportGate.UI",
+  "references": [
+    "Hooligapps.SupportGate.Core"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

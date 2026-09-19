@@ -1,0 +1,22 @@
+{
+  "name": "com.hooligapps.supportgate",
+  "version": "0.1.0",
+  "displayName": "Support Gate",
+  "description": "Клиент Support Gateway: форма обращения в поддержку со справочником категорий с сервера, вложениями и доставкой в Jira Service Management. Готовые рендереры для uGUI и UI Toolkit.",
+  "unity": "2021.3",
+  "dependencies": {
+    "com.unity.nuget.newtonsoft-json": "3.2.1"
+  },
+  "samples": [
+    {
+      "displayName": "uGUI host",
+      "description": "Модальный хост и склейка презентера для uGUI.",
+      "path": "Samples~/UGUI"
+    },
+    {
+      "displayName": "UI Toolkit host",
+      "description": "Панельный хост и склейка презентера для UI Toolkit.",
+      "path": "Samples~/UIToolkit"
+    }
+  ]
+}

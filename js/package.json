@@ -1,0 +1,19 @@
+{
+  "name": "support-gate",
+  "version": "0.1.0",
+  "description": "Клиент Support Gateway: окно обращения в поддержку для веб-игр",
+  "private": true,
+  "scripts": {
+    "build": "vite build",
+    "build:dev": "vite build --mode development",
+    "watch": "vite build --watch --mode development",
+    "test": "npm run build:dev && node --test tests/*.test.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^26.5.1",
+    "jsdom": "^30.0.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0"
+  }
+}

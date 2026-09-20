@@ -139,3 +139,72 @@ test('файл уходит прямо в хранилище, а сервису 
   assert.equal(put[0].init.headers['Content-Type'], 'image/png');
   assert.equal(attachment.attachment_id, 'att-1');
 });
+
+const DRAFT = { category: 'gameplay', subcategory: 'progress', subject: 's', description: 'd' };
+
+function expiredUnless(token) {
+  return (call) =>
+    call.init.headers.Authorization === `Bearer ${token}`
+      ? json(200, { ticket_id: 'tkt-1', issue_key: null, status: 'queued', created_at: '2026-01-01T00:00:00Z' })
+      : json(401, { error: 'unauthorized', message: 'expired' });
+}
+
+test('на 401 игра спрашивается о новом токене, запрос повторяется с тем же ключом', async () => {
+  const { SupportGate, calls } = setup({ 'POST /v1/tickets': expiredUnless('fresh') });
+  const hints = [];
+  const client = SupportGate.init({
+    endpoint: 'https://support.example',
+    token: (hint) => {
+      hints.push(hint);
+      return hint ? 'fresh' : 'stale';
+    },
+  });
+
+  const ticket = await client.submit(DRAFT, 'key-1');
+
+  assert.equal(ticket.ticket_id, 'tkt-1');
+  assert.deepEqual(hints, [undefined, { reason: 'expired' }]);
+  const posts = calls.filter((c) => c.key === 'POST /v1/tickets');
+  assert.equal(posts.length, 2);
+  assert.equal(posts[0].init.headers.Authorization, 'Bearer stale');
+  assert.equal(posts[1].init.headers.Authorization, 'Bearer fresh');
+  assert.equal(posts[1].init.headers['Idempotency-Key'], posts[0].init.headers['Idempotency-Key']);
+});
+
+test('токен строкой продлевается через шлюз и дальше используется новый', async () => {
+  const { SupportGate, calls } = setup({
+    'POST /v1/tickets': expiredUnless('renewed'),
+    'POST /v1/session/refresh': (call) =>
+      call.init.headers.Authorization === 'Bearer stale'
+        ? json(200, { token: 'renewed', expires_in: 900 })
+        : json(401, { error: 'unauthorized' }),
+  });
+  const client = SupportGate.init({ endpoint: 'https://support.example', token: 'stale' });
+
+  await client.submit(DRAFT, 'key-1');
+  await client.form();
+
+  assert.deepEqual(
+    calls.map((c) => [c.key, c.init.headers.Authorization]),
+    [
+      ['POST /v1/tickets', 'Bearer stale'],
+      ['POST /v1/session/refresh', 'Bearer stale'],
+      ['POST /v1/tickets', 'Bearer renewed'],
+      ['GET /v1/form', 'Bearer renewed'],
+    ],
+  );
+});
+
+test('если ни игра, ни шлюз не дали токен — наружу уходит исходный 401, без второго повтора', async () => {
+  const { SupportGate, calls } = setup({
+    'POST /v1/tickets': () => json(401, { error: 'unauthorized', message: 'expired' }),
+    'POST /v1/session/refresh': () => json(401, { error: 'unauthorized', message: 'too old' }),
+  });
+  const client = SupportGate.init({ endpoint: 'https://support.example', token: () => 'same' });
+
+  await assert.rejects(() => client.submit(DRAFT, 'key-1'), (error) => error.status === 401 && error.message === 'expired');
+  assert.deepEqual(
+    calls.map((c) => c.key),
+    ['POST /v1/tickets', 'POST /v1/session/refresh'],
+  );
+});

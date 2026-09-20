@@ -119,7 +119,7 @@ namespace Hooligapps.SupportGate.UI
             _sending = false;
             _sent = false;
             _idempotencyKey = null;
-            _attachments.Clear();
+            ClearAttachments();
             _view.ShowMessage(null);
             LoadForm();
 
@@ -140,6 +140,7 @@ namespace Hooligapps.SupportGate.UI
 
             _view.SetState(SupportGateViewState.Hidden);
             _host.Close(_view.Root);
+            ClearAttachments();
             Closed?.Invoke();
 
             if (!_sent)
@@ -166,7 +167,10 @@ namespace Hooligapps.SupportGate.UI
                 return;
             }
 
-            var item = new SupportGateAttachmentItem(fileName, data == null ? 0 : data.LongLength);
+            var item = new SupportGateAttachmentItem(fileName, contentType, data == null ? 0 : data.LongLength)
+            {
+                Preview = SupportGatePreview.Create(contentType, data)
+            };
             _attachments.Add(item);
             _view.BindAttachments(_attachments);
 
@@ -182,6 +186,7 @@ namespace Hooligapps.SupportGate.UI
                 {
                     // Файл не ушёл — убираем строку, иначе отправка молча потеряет вложение.
                     _attachments.Remove(item);
+                    item.ReleasePreview();
                     _view.BindAttachments(_attachments);
                     _view.ShowMessage(Describe(result.Error));
                     Failed?.Invoke(result.Error);
@@ -217,6 +222,18 @@ namespace Hooligapps.SupportGate.UI
                 _view.SetState(SupportGateViewState.Hidden);
                 _host.Close(_view.Root);
             }
+
+            ClearAttachments();
+        }
+
+        private void ClearAttachments()
+        {
+            for (var i = 0; i < _attachments.Count; i++)
+            {
+                _attachments[i].ReleasePreview();
+            }
+
+            _attachments.Clear();
         }
 
         private void LoadForm()
@@ -298,6 +315,7 @@ namespace Hooligapps.SupportGate.UI
                 return;
             }
 
+            _attachments[index].ReleasePreview();
             _attachments.RemoveAt(index);
             _view.BindAttachments(_attachments);
         }

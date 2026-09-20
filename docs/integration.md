@@ -78,6 +78,29 @@ const token = jwt.sign({iss: gameId, sub: String(userId), jti, ctx},
 Токен выдаётся по запросу клиента, когда игрок открывает окно поддержки —
 не при логине, иначе к моменту отправки он протухнет.
 
+### Продление сессии
+
+Игрок может писать дольше 15 минут. Оба SDK на `401` сначала просят у игры
+свежий токен (JS — вызов `token({reason: 'expired'})`, Unity — провайдер с
+`SupportGateTokenReason.Expired`), а если токен задан строкой или игра вернула
+тот же — продлевают его через шлюз и повторяют запрос с тем же
+`Idempotency-Key`. Ошибку игрок видит, только когда не помогло и это.
+
+```
+POST /v1/session/refresh
+Authorization: Bearer <старый токен>
+```
+
+```json
+{"token": "eyJ…", "expires_in": 900}
+```
+
+Шлюз проверяет подпись, переподписывает те же `iss`/`sub`/`jti`/`ctx` с новым
+`exp`; сам токен не меняет прав. Ограничения: старый токен принимается не
+позже 30 минут после `exp`, а всей сессии — не дольше 3 часов от первого `iat`
+(`session_refresh_grace_seconds`, `session_max_lifetime_seconds`). Дальше
+только новый токен от игры.
+
 ## Три способа отправить обращение
 
 ### JS SDK — веб-игры
@@ -106,12 +129,19 @@ const token = jwt.sign({iss: gameId, sub: String(userId), jti, ctx},
 
 ### Unity SDK
 
-UPM-пакет `com.hooligapps.supportgate` из `sdk/unity`. Готовые формы uGUI и UI
-Toolkit, презентер под свой View, или только `SupportGateClient`:
-[`sdk/unity/README.md`](../unity/README.md). Строки и направление письма
-берутся из `/v1/form`, итог показа — событие `Completed` с теми же `sent` /
-`error` / `closed`, что у `onResult` в JS. Стенд со всеми состояниями на обоих
-рендерерах и без сети — `sdk/unity-demo`.
+UPM-пакет `com.hooligapps.supportgate` из `sdk/unity`,
+[`sdk/unity/README.md`](../unity/README.md). Два пути:
+
+- **Форма в браузере** — `SupportGateBrowser.Open(endpoint, token)` открывает
+  страницу шлюза `/form` в системном браузере: та же веб-форма, файлы через
+  диалог браузера, без плагинов. Токен во фрагменте адреса; страница сама
+  продлевает сессию через шлюз до 3 часов. Итог отправки в игру не
+  возвращается.
+- **Форма в игре** — готовые uGUI и UI Toolkit, презентер под свой View или
+  только `SupportGateClient`. Строки и направление письма берутся из
+  `/v1/form`, итог показа — событие `Completed` с теми же `sent` / `error` /
+  `closed`, что у `onResult` в JS. Стенд со всеми состояниями на обоих
+  рендерерах и без сети — `sdk/unity-demo`.
 
 ### REST — всё остальное
 
@@ -227,7 +257,7 @@ Idempotency-Key: 6f1c…
 | HTTP | `error` | Что делать |
 | --- | --- | --- |
 | 400 | `missing_idempotency_key` | добавить заголовок |
-| 401 | `invalid_token` | взять свежий токен у бэкенда игры, повторить |
+| 401 | `invalid_token` | продлить через `POST /v1/session/refresh` или взять свежий токен у бэкенда игры, повторить с тем же `Idempotency-Key` |
 | 404 | `not_found` | обращение не этой игры или не существует |
 | 413 | `file_too_large` | показать у поля вложения |
 | 422 | `unsupported_type` | показать у поля вложения |

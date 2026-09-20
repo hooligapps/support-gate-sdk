@@ -39,10 +39,8 @@ const FORM = {
  * Поднимает окружение браузера и подменённый fetch.
  * Возвращает SupportGate из бандла и журнал запросов.
  */
-function setup(routes = {}) {
-  const dom = new JSDOM('<!doctype html><html><head></head><body></body></html>', {
-    url: 'https://game.example',
-  });
+function setup(routes = {}, url = 'https://game.example') {
+  const dom = new JSDOM('<!doctype html><html><head></head><body></body></html>', { url });
   const calls = [];
 
   const handlers = Object.assign(

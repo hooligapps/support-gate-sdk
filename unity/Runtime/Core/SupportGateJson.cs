@@ -69,6 +69,12 @@ namespace Hooligapps.SupportGate
                 (int)Number(root["expires_in"], 0));
         }
 
+        /// <summary>Ответ POST /v1/session/refresh: продлённый токен той же сессии.</summary>
+        public static string ReadRefreshedToken(string body)
+        {
+            return Text(JObject.Parse(body)["token"]);
+        }
+
         public static SupportGateTicket ReadTicket(string body)
         {
             var root = JObject.Parse(body);

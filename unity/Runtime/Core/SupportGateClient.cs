@@ -10,14 +10,17 @@ namespace Hooligapps.SupportGate
     /// Клиент Support Gateway. Не MonoBehaviour: методы возвращают IEnumerator,
     /// корутину запускает вызывающая сторона.
     ///
-    /// Чего клиент не делает намеренно: не ретраит отправку сам (повтор с тем же
-    /// ключом идемпотентности — решение UI) и не рисует форму.
+    /// Чего клиент не делает намеренно: не ретраит отправку при сетевых ошибках
+    /// (повтор с тем же ключом идемпотентности — решение UI) и не рисует форму.
+    /// Единственный повтор — после 401: истёкшая сессия обновляется, и запрос
+    /// уходит снова с теми же заголовками.
     /// </summary>
     public sealed class SupportGateClient
     {
         private const string FormPath = "/v1/form";
         private const string PresignPath = "/v1/attachments/presign";
         private const string TicketsPath = "/v1/tickets";
+        private const string RefreshPath = "/v1/session/refresh";
 
         private readonly string _endpoint;
         private readonly ISupportGateTransport _transport;
@@ -254,6 +257,82 @@ namespace Hooligapps.SupportGate
                 yield break;
             }
 
+            var body = jsonBody == null ? null : Encoding.UTF8.GetBytes(jsonBody);
+            SupportGateHttpResponse response = null;
+            var send = Send(method, url, body, jsonBody, headers, token, r => response = r);
+            while (send.MoveNext())
+            {
+                yield return send.Current;
+            }
+
+            if (response != null && !response.HasTransportError && response.StatusCode == 401)
+            {
+                var renewed = false;
+                var renew = Renew(token, ok => renewed = ok);
+                while (renew.MoveNext())
+                {
+                    yield return renew.Current;
+                }
+
+                if (renewed)
+                {
+                    // Те же заголовки и ключ идемпотентности — дубля не будет.
+                    SupportGateHttpResponse retried = null;
+                    send = Send(method, url, body, jsonBody, headers, _session.Token, r => retried = r);
+                    while (send.MoveNext())
+                    {
+                        yield return send.Current;
+                    }
+
+                    response = retried;
+                }
+            }
+
+            Complete(onDone, Interpret(response, read));
+        }
+
+        /// <summary>
+        /// Сессия истекла: сначала свежий токен у игры, а если она отдаёт тот же
+        /// (или токен задан строкой) — продление через шлюз, пока не вышел его срок.
+        /// Ошибка продления не важна: наружу уйдёт исходный 401.
+        /// </summary>
+        private IEnumerator Renew(string stale, Action<bool> onDone)
+        {
+            var fromGame = false;
+            var ask = _session.Renew(stale, ok => fromGame = ok);
+            while (ask.MoveNext())
+            {
+                yield return ask.Current;
+            }
+
+            if (fromGame)
+            {
+                onDone(true);
+                yield break;
+            }
+
+            SupportGateHttpResponse response = null;
+            var send = Send("POST", _endpoint + RefreshPath, null, null, null, stale, r => response = r);
+            while (send.MoveNext())
+            {
+                yield return send.Current;
+            }
+
+            var result = Interpret(response, SupportGateJson.ReadRefreshedToken);
+            if (!result.Success || string.IsNullOrEmpty(result.Value))
+            {
+                Debug.Log("[SupportGate] шлюз не продлил сессию: " + (result.Error?.Message ?? "пустой токен"));
+                onDone(false);
+                yield break;
+            }
+
+            _session.SetToken(result.Value);
+            onDone(true);
+        }
+
+        private IEnumerator Send(string method, string url, byte[] body, string jsonBody,
+            IDictionary<string, string> headers, string token, Action<SupportGateHttpResponse> onDone)
+        {
             var requestHeaders = new Dictionary<string, string>
             {
                 { "Accept", "application/json" },
@@ -268,53 +347,40 @@ namespace Hooligapps.SupportGate
                 }
             }
 
-            var body = jsonBody == null ? null : Encoding.UTF8.GetBytes(jsonBody);
-            SupportGateHttpResponse response = null;
-
-            var request = _transport.Send(
+            return _transport.Send(
                 new SupportGateHttpRequest(method, url, body, jsonBody == null ? null : "application/json",
                     requestHeaders),
-                r => response = r);
+                onDone);
+        }
 
-            while (request.MoveNext())
-            {
-                yield return request.Current;
-            }
-
+        private static SupportGateResult<T> Interpret<T>(SupportGateHttpResponse response, Func<string, T> read)
+        {
             if (response == null)
             {
-                Complete(onDone, SupportGateResult<T>.Fail(SupportGateErrorKind.Network, "Ответ не получен"));
-                yield break;
+                return SupportGateResult<T>.Fail(SupportGateErrorKind.Network, "Ответ не получен");
             }
 
             if (response.HasTransportError)
             {
-                Complete(onDone, SupportGateResult<T>.Fail(new SupportGateError(
+                return SupportGateResult<T>.Fail(new SupportGateError(
                     SupportGateErrorKind.Network, response.TransportError, response.StatusCode,
-                    null, null, response.Body)));
-                yield break;
+                    null, null, response.Body));
             }
 
             if (response.StatusCode >= 400)
             {
-                Complete(onDone, SupportGateResult<T>.Fail(
-                    SupportGateJson.ReadError(response.StatusCode, response.Body)));
-                yield break;
+                return SupportGateResult<T>.Fail(SupportGateJson.ReadError(response.StatusCode, response.Body));
             }
 
-            T value;
             try
             {
-                value = read(response.Body);
+                return SupportGateResult<T>.Ok(read(response.Body));
             }
             catch (Exception e)
             {
-                Complete(onDone, SupportGateResult<T>.Fail(new SupportGateError(
-                    SupportGateErrorKind.Parse, e.Message, response.StatusCode, null, null, response.Body)));
-                yield break;
+                return SupportGateResult<T>.Fail(new SupportGateError(
+                    SupportGateErrorKind.Parse, e.Message, response.StatusCode, null, null, response.Body));
             }
-
-            Complete(onDone, SupportGateResult<T>.Ok(value));
         }
 
         private static void Complete<T>(Action<SupportGateResult<T>> onDone, SupportGateResult<T> result)

@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Text;
+using Hooligapps.SupportGate;
 using Hooligapps.SupportGate.UI;
 using Hooligapps.SupportGate.UI.UIToolkit;
 using UnityEngine;
@@ -216,7 +217,49 @@ namespace Hooligapps.SupportGate.Demo
             presenter.HostRefused += () => Write(tag + ": хост запретил показ");
             presenter.Closed += () => Write(tag + ": окно закрыто");
             presenter.Completed += result => Write(tag + ": итог → " + result);
-            presenter.AttachRequested += () => StartCoroutine(CaptureScreenshot(presenter));
+            presenter.AttachRequested += () => PickFile(presenter);
+        }
+
+        /// <summary>
+        /// «Добавить файлы» в форме. В Unity нет встроенного диалога выбора файла в
+        /// рантайме, поэтому пакет только поднимает событие, а откуда взять байты —
+        /// решает игра: в редакторе это системный диалог, в билде — плагин
+        /// (NativeFilePicker / NativeGallery на мобильных, StandaloneFileBrowser на
+        /// десктопе) или, как здесь, скриншот экрана.
+        /// </summary>
+        private void PickFile<TRoot>(SupportGateFormPresenter<TRoot> presenter)
+        {
+#if UNITY_EDITOR
+            if (!Application.isBatchMode)
+            {
+                var path = UnityEditor.EditorUtility.OpenFilePanel("Приложить файл", string.Empty, string.Empty);
+                if (string.IsNullOrEmpty(path))
+                {
+                    Write("выбор файла отменён");
+                    return;
+                }
+
+                presenter.AttachFile(System.IO.Path.GetFileName(path), ContentTypeOf(path), System.IO.File.ReadAllBytes(path));
+                return;
+            }
+#endif
+            StartCoroutine(CaptureScreenshot(presenter));
+        }
+
+        private static string ContentTypeOf(string path)
+        {
+            switch (System.IO.Path.GetExtension(path).ToLowerInvariant())
+            {
+                case ".png": return "image/png";
+                case ".jpg":
+                case ".jpeg": return "image/jpeg";
+                case ".gif": return "image/gif";
+                case ".webp": return "image/webp";
+                case ".mp4": return "video/mp4";
+                case ".txt":
+                case ".log": return "text/plain";
+                default: return "application/octet-stream";
+            }
         }
 
         private IEnumerator CaptureScreenshot<TRoot>(SupportGateFormPresenter<TRoot> presenter)
@@ -330,6 +373,21 @@ namespace Hooligapps.SupportGate.Demo
             {
                 if (_useUGui) _ugui?.Open();
                 else _toolkit?.Open();
+            }
+
+            if (GUILayout.Button("Открыть в браузере"))
+            {
+                // Веб-форма шлюза в системном браузере — без вёрстки в Unity.
+                // Демо-сервер такой страницы не держит: нужен настоящий шлюз и токен.
+                if (_useDemoServer || string.IsNullOrEmpty(_sessionToken))
+                {
+                    Write("браузер: снимите Use Demo Server и впишите Session Token");
+                }
+                else
+                {
+                    Write("браузер: " + _endpoint + SupportGateBrowser.PagePath);
+                    SupportGateBrowser.Open(_endpoint, _sessionToken);
+                }
             }
 
             if (GUILayout.Button("Приложить PNG (скриншот)"))

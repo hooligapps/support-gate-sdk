@@ -51,8 +51,8 @@ namespace Hooligapps.SupportGate.Demo
 
             var rect = (RectTransform)_shown.transform;
             rect.sizeDelta = new Vector2(
-                Mathf.Min(640f, Mathf.Max(0f, _container.rect.width - 32f)),
-                Mathf.Min(860f, Mathf.Max(0f, _container.rect.height - 32f)));
+                Mathf.Min(1000f, Mathf.Max(0f, _container.rect.width - 32f)),
+                Mathf.Min(1500f, Mathf.Max(0f, _container.rect.height - 32f)));
         }
 
         public void Close(GameObject content)

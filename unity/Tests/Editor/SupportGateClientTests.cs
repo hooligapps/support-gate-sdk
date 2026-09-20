@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Text;
 using NUnit.Framework;
 
@@ -200,6 +201,79 @@ namespace Hooligapps.SupportGate.Tests
 
             Assert.AreEqual(2, issued);
             Assert.AreEqual("Bearer jwt-2", transport.Last.Headers["Authorization"]);
+        }
+
+        private static SupportGateHttpResponse TicketUnless(SupportGateHttpRequest request, string token)
+        {
+            return request.Headers["Authorization"] == "Bearer " + token
+                ? new SupportGateHttpResponse(200, Json.Ticket)
+                : new SupportGateHttpResponse(401, @"{""error"": ""unauthorized"", ""message"": ""expired""}");
+        }
+
+        [Test]
+        public void On401ProviderIsToldTheTokenExpiredAndTheCallIsRetriedOnce()
+        {
+            var reasons = new List<SupportGateTokenReason>();
+            var transport = new FakeTransport(request => TicketUnless(request, "fresh"));
+            var session = SupportGateSession.FromProvider((reason, onToken) =>
+            {
+                reasons.Add(reason);
+                return IssueToken(onToken, reason == SupportGateTokenReason.Expired ? "fresh" : "stale");
+            });
+            var client = new SupportGateClient("https://support.example", session, transport);
+            SupportGateTicket ticket = null;
+
+            Pump.RunToEnd(client.SubmitTicket(Draft(), "key-1", result => ticket = result.Value));
+
+            Assert.AreEqual("SUP-1", ticket.IssueKey);
+            CollectionAssert.AreEqual(
+                new[] { SupportGateTokenReason.Request, SupportGateTokenReason.Expired }, reasons);
+            Assert.AreEqual(2, transport.CountOf("/v1/tickets"));
+            Assert.AreEqual(0, transport.CountOf("/v1/session/refresh"));
+            Assert.AreEqual("Bearer stale", transport.Requests[0].Headers["Authorization"]);
+            Assert.AreEqual("Bearer fresh", transport.Requests[1].Headers["Authorization"]);
+            Assert.AreEqual("key-1", transport.Requests[1].Headers["Idempotency-Key"]);
+        }
+
+        [Test]
+        public void FixedTokenIsRenewedThroughTheGatewayAndReusedAfterwards()
+        {
+            var transport = new FakeTransport(request =>
+                request.Url.EndsWith("/v1/session/refresh", StringComparison.Ordinal)
+                    ? (request.Headers["Authorization"] == "Bearer stale"
+                        ? new SupportGateHttpResponse(200, @"{""token"": ""renewed"", ""expires_in"": 900}")
+                        : new SupportGateHttpResponse(401, @"{""error"": ""unauthorized""}"))
+                    : TicketUnless(request, "renewed"));
+            var client = Client(transport, "stale");
+            SupportGateTicket ticket = null;
+
+            Pump.RunToEnd(client.SubmitTicket(Draft(), "key-1", result => ticket = result.Value));
+            Pump.RunToEnd(client.SubmitTicket(Draft(), "key-2", null));
+
+            Assert.AreEqual("SUP-1", ticket.IssueKey);
+            Assert.AreEqual("renewed", client.Session.Token);
+            CollectionAssert.AreEqual(
+                new[] { "Bearer stale", "Bearer stale", "Bearer renewed", "Bearer renewed" },
+                transport.Requests.ConvertAll(r => r.Headers["Authorization"]));
+            Assert.AreEqual("POST", transport.Requests[1].Method);
+            Assert.AreEqual("https://support.example/v1/session/refresh", transport.Requests[1].Url);
+        }
+
+        [Test]
+        public void WhenNobodyRenewsTheOriginal401IsReportedWithoutASecondRetry()
+        {
+            var transport = new FakeTransport(request =>
+                new SupportGateHttpResponse(401, @"{""error"": ""unauthorized"", ""message"": ""expired""}"));
+            var session = SupportGateSession.FromProvider(onToken => IssueToken(onToken, "same"));
+            var client = new SupportGateClient("https://support.example", session, transport);
+            SupportGateError error = null;
+
+            Pump.RunToEnd(client.SubmitTicket(Draft(), "key-1", result => error = result.Error));
+
+            Assert.IsTrue(error.IsUnauthorized);
+            Assert.AreEqual("expired", error.Message);
+            Assert.AreEqual(1, transport.CountOf("/v1/tickets"));
+            Assert.AreEqual(1, transport.CountOf("/v1/session/refresh"));
         }
 
         /// <summary>Провайдер токена игры: здесь он отвечает сразу, без похода на сервер.</summary>

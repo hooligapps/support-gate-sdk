@@ -28,6 +28,8 @@ namespace Hooligapps.SupportGate.UI.UGUI
         [Header("Подписи")]
         [SerializeField] private Text _title;
         [SerializeField] private Text _banner;
+        [Tooltip("Подложка баннера; если не задана, включается и выключается сам текст.")]
+        [SerializeField] private GameObject _bannerRoot;
         [SerializeField] private Text _state;
         [SerializeField] private Text _categoryLabel;
         [SerializeField] private Text _subcategoryLabel;
@@ -289,6 +291,13 @@ namespace Hooligapps.SupportGate.UI.UGUI
                 row.RemoveRequested += index => AttachmentRemoved?.Invoke(index);
                 _attachmentRows.Add(row);
             }
+
+            // Если кнопка «Добавить файлы» лежит в той же сетке, она остаётся
+            // последней плиткой, как в вебе.
+            if (_attach != null && _attach.transform.parent == _attachmentsRoot)
+            {
+                _attach.transform.SetAsLastSibling();
+            }
         }
 
         public void ShowMessage(string message)
@@ -299,7 +308,7 @@ namespace Hooligapps.SupportGate.UI.UGUI
             }
 
             _banner.text = message ?? string.Empty;
-            _banner.gameObject.SetActive(!string.IsNullOrEmpty(message));
+            (_bannerRoot != null ? _bannerRoot : _banner.gameObject).SetActive(!string.IsNullOrEmpty(message));
         }
 
         public void ShowFieldErrors(IReadOnlyDictionary<string, string> errors)

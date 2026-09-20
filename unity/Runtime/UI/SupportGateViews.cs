@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace Hooligapps.SupportGate.UI
 {
@@ -31,17 +32,51 @@ namespace Hooligapps.SupportGate.UI
     public sealed class SupportGateAttachmentItem
     {
         public string FileName { get; }
+        public string ContentType { get; }
         public long Size { get; }
         public SupportGateUploadState State { get; internal set; }
 
         /// <summary>Заполняется, когда файл долетел до хранилища.</summary>
         public string AttachmentId { get; internal set; }
 
+        /// <summary>
+        /// Уменьшенная копия картинки для плитки вложения; для остальных файлов
+        /// null — вью показывает расширение. Принадлежит презентеру.
+        /// </summary>
+        public Texture2D Preview { get; internal set; }
+
+        /// <summary>Расширение файла заглавными для плитки без превью: PNG, LOG.</summary>
+        public string Extension
+        {
+            get
+            {
+                var dot = FileName == null ? -1 : FileName.LastIndexOf('.');
+                return dot < 0 || dot == FileName.Length - 1
+                    ? "FILE"
+                    : FileName.Substring(dot + 1).ToUpperInvariant();
+            }
+        }
+
         public SupportGateAttachmentItem(string fileName, long size)
+            : this(fileName, null, size)
+        {
+        }
+
+        public SupportGateAttachmentItem(string fileName, string contentType, long size)
         {
             FileName = fileName;
+            ContentType = contentType;
             Size = size;
             State = SupportGateUploadState.Uploading;
+        }
+
+        internal void ReleasePreview()
+        {
+            if (Preview != null)
+            {
+                UnityEngine.Object.Destroy(Preview);
+                Preview = null;
+            }
         }
     }
 

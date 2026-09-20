@@ -126,8 +126,21 @@ export class SupportGateError extends Error {
   }
 }
 
-/** Токен сессии выпускает бэкенд игры; строкой или функцией, если он обновляется. */
-export type TokenSource = string | (() => string | Promise<string>);
+/**
+ * Зачем клиент просит токен: `expired` — сервис ответил 401, кэш игры пора
+ * сбросить и выпустить новый. Без причины — обычный запрос перед обращением.
+ */
+export interface TokenHint {
+  reason: 'expired';
+}
+
+/**
+ * Токен сессии выпускает бэкенд игры: строкой или функцией. Функция вызывается
+ * перед каждым запросом, а после 401 — ещё раз с `{reason: 'expired'}`; если
+ * она вернёт тот же токен (или задана строка), клиент продлит сессию сам через
+ * `POST /v1/session/refresh`.
+ */
+export type TokenSource = string | ((hint?: TokenHint) => string | Promise<string>);
 
 export interface SupportGateOptions {
   /** Адрес сервиса, например https://support.flushee.work */

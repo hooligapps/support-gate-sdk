@@ -37,10 +37,17 @@ export function randomKey(): string {
   return `sg-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+interface RefreshResponse {
+  token: string;
+  expires_in: number;
+}
+
 export class Api {
   private readonly endpoint: string;
   private readonly token: TokenSource;
   private readonly timeout: number;
+  /** Токен, выданный шлюзом при обновлении: он новее того, что дала игра. */
+  private renewed: string | null = null;
 
   constructor(options: SupportGateOptions) {
     this.endpoint = normalizeEndpoint(options.endpoint);
@@ -124,12 +131,41 @@ export class Api {
     }
   }
 
-  private async authorization(): Promise<string> {
+  private async current(): Promise<string> {
+    if (this.renewed) return this.renewed;
     const token = typeof this.token === 'function' ? await this.token() : this.token;
     if (!token) {
       throw new SupportGateError('invalid_request', 'session token пустой');
     }
-    return `Bearer ${token}`;
+    return token;
+  }
+
+  /**
+   * Сессия истекла (401): просим у игры свежий токен, а если она отдаёт тот же
+   * или токен задан строкой — продлеваем через шлюз, пока не вышел его срок
+   * (grace + предельное время жизни настраиваются на сервере). Ошибка
+   * обновления не важна — наружу уйдёт исходный 401.
+   */
+  private async renew(stale: string): Promise<boolean> {
+    if (typeof this.token === 'function') {
+      try {
+        const fresh = await this.token({ reason: 'expired' });
+        if (fresh && fresh !== stale) {
+          this.renewed = fresh;
+          return true;
+        }
+      } catch (error) {
+        Logger.log('Api.renew', 'игра не дала новый токен: %s', [String(error)]);
+      }
+    }
+    try {
+      const response = await this.request<RefreshResponse>('POST', '/v1/session/refresh', stale);
+      this.renewed = response.token;
+      return true;
+    } catch (error) {
+      Logger.log('Api.renew', 'шлюз не продлил сессию: %s', [String(error)]);
+      return false;
+    }
   }
 
   private async call<T>(
@@ -139,12 +175,32 @@ export class Api {
     headers: Record<string, string> = {},
     signal?: AbortSignal,
   ): Promise<T> {
+    const token = await this.current();
+    try {
+      return await this.request<T>(method, path, token, body, headers, signal);
+    } catch (error) {
+      if (!(error instanceof SupportGateError) || error.status !== 401 || !(await this.renew(token))) {
+        throw error;
+      }
+    }
+    // Повтор с теми же заголовками (и ключом идемпотентности) — дубля не будет.
+    return this.request<T>(method, path, await this.current(), body, headers, signal);
+  }
+
+  private async request<T>(
+    method: string,
+    path: string,
+    token: string,
+    body?: unknown,
+    headers: Record<string, string> = {},
+    signal?: AbortSignal,
+  ): Promise<T> {
     const url = `${this.endpoint}${path}`;
     const init: RequestInit = {
       method,
       headers: {
         Accept: 'application/json',
-        Authorization: await this.authorization(),
+        Authorization: `Bearer ${token}`,
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
         ...headers,
       },

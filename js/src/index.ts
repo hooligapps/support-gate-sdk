@@ -61,3 +61,64 @@ export function mount(host: HTMLElement, options: SupportFormOptions = {}): Prom
   const form = new SupportForm(host, getInstance(), options);
   return form.mount().then(() => form);
 }
+
+/**
+ * Страница шлюза `/form`, которую игра открывает в системном браузере
+ * (Unity, десктоп): токен приходит во фрагменте адреса — `/form#token=…` —
+ * и до сервера не доходит (фрагмент не уходит в запрос и не попадает в логи).
+ * Страница сразу стирает его из адресной строки, чтобы он не остался в
+ * истории и закладках. Сервис — тот же origin, что и страница.
+ *
+ * Без токена монтировать нечего: показывается подсказка, возвращается null.
+ * Сессию клиент продлевает сам через шлюз; когда и это не удалось (страницу
+ * держали открытой дольше предельного срока), форма заменяется той же
+ * подсказкой — новую сессию даст только игра.
+ */
+export function hosted(host: HTMLElement, options: SupportFormOptions = {}): Promise<SupportForm | null> {
+  const token = tokenFromFragment();
+  if (!token) {
+    showReopenHint(host);
+    return Promise.resolve(null);
+  }
+
+  init({ endpoint: window.location.origin, token });
+  return mount(host, {
+    ...options,
+    onResult(result) {
+      options.onResult?.(result);
+      if (result.status === 'error' && result.httpStatus === 401) {
+        showReopenHint(host);
+      }
+    },
+  });
+}
+
+function showReopenHint(host: HTMLElement): void {
+  injectStyles();
+  host.classList.add('sg-embed');
+  while (host.firstChild) host.removeChild(host.firstChild);
+  host.appendChild(
+    el('div', 'sg-state', [
+      el('h3', '', ['Open this page from the game']),
+      el('p', '', ['The support form needs a session from the game; the link has expired or is incomplete.']),
+    ]),
+  );
+}
+
+function tokenFromFragment(): string {
+  const hash = window.location.hash.replace(/^#/, '');
+  const token = new URLSearchParams(hash).get('token') ?? '';
+  if (token) {
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  }
+  return token;
+}
+
+function el(tag: string, className: string, children: (string | HTMLElement)[]): HTMLElement {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  for (const child of children) {
+    node.appendChild(typeof child === 'string' ? document.createTextNode(child) : child);
+  }
+  return node;
+}

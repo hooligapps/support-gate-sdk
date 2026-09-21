@@ -1,6 +1,6 @@
 {
   "name": "support-gate",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Клиент Support Gateway: окно обращения в поддержку для веб-игр",
   "private": true,
   "scripts": {

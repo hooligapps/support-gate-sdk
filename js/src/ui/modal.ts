@@ -4,11 +4,11 @@
 import { SupportGateClient } from '../client';
 import { SupportResult, Ticket } from '../types';
 import { el } from './dom';
-import { SupportForm } from './form';
+import { SupportForm, SupportFormOptions } from './form';
 import { strings } from './i18n';
 import { injectStyles } from './styles';
 
-export interface ModalOptions {
+export interface ModalOptions extends SupportFormOptions {
   onSubmitted?: (ticket: Ticket) => void;
   onClose?: () => void;
   /** Итог окна: `sent`, `error` (на каждую попытку) или `closed` — закрыли, не отправив. */
@@ -58,27 +58,25 @@ export class SupportModal {
     dialog.appendChild(content);
 
     const root = el('div', { class: 'sg-root' }, [backdrop, dialog]);
-    document.body.appendChild(root);
-    document.addEventListener('keydown', this.onKeyDown);
-    this.root = root;
-
     const form = new SupportForm(content, this.client, {
+      ...this.options,
       onSubmitted: this.options.onSubmitted,
       onCancel: () => this.close(),
       onResult: this.options.onResult,
+      onConfig: (config) => {
+        const text = strings(config.strings, config.locale);
+        title.textContent = text.title;
+        close.setAttribute('aria-label', text.close);
+        dialog.setAttribute('lang', config.locale);
+        dialog.setAttribute('dir', config.direction || 'ltr');
+        this.options.onConfig?.(config);
+      },
     });
     this.form = form;
+    document.body.appendChild(root);
+    document.addEventListener('keydown', this.onKeyDown);
+    this.root = root;
     await form.mount();
-
-    // Заголовок и направление письма — по ответу сервера: язык выбирает он.
-    const config = await this.client.form().catch(() => null);
-    if (config && this.root) {
-      const text = strings(config.strings, config.locale);
-      title.textContent = text.title;
-      close.setAttribute('aria-label', text.close);
-      dialog.setAttribute('lang', config.locale);
-      dialog.setAttribute('dir', config.direction || 'ltr');
-    }
 
     const first = dialog.querySelector('select, input, textarea, button') as HTMLElement | null;
     first?.focus();
@@ -91,7 +89,10 @@ export class SupportModal {
     this.root.remove();
     this.root = null;
     (this.previousFocus as HTMLElement | null)?.focus?.();
-    if (!this.form?.sent) this.options.onResult?.({ status: 'closed' });
+    if (!this.form?.sent) this.options.onResult?.({ status: 'closed',
+      ...(this.form?.targetId ? { targetId: this.form.targetId } : {}),
+    });
+    this.form?.destroy();
     this.form = null;
     this.options.onClose?.();
   }

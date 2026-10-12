@@ -69,6 +69,43 @@ namespace Hooligapps.SupportGate.Tests
             Assert.AreEqual(1, transport.CountOf("/v1/form"));
         }
 
+        [TestCase(200)]
+        [TestCase(401)]
+        public void ChangedSessionRejectsLateFormWithoutCachingOrRenewing(int status)
+        {
+            var transport = new FakeTransport(new SupportGateHttpResponse(status, Json.Form))
+                { DelayFrames = 1 };
+            var client = Client(transport, "old");
+            SupportGateError error = null;
+            var pending = client.LoadForm(result => error = result.Error);
+            Assert.IsTrue(pending.MoveNext());
+            client.SetSession(SupportGateSession.FromToken("new"));
+            Pump.RunToEnd(pending);
+            Assert.AreEqual("session_changed", error.Code);
+            Assert.IsNull(client.Config);
+            Assert.AreEqual("new", client.Session.Token);
+            Assert.AreEqual(1, transport.Requests.Count);
+        }
+
+        [Test]
+        public void UnchangedProviderKeepsGatewayRenewedToken()
+        {
+            var issued = "stale";
+            var session = SupportGateSession.FromProvider(onToken => IssueToken(onToken, issued));
+            var transport = new FakeTransport(request =>
+                request.Url.EndsWith("/v1/session/refresh", StringComparison.Ordinal)
+                    ? new SupportGateHttpResponse(200, @"{""token"": ""renewed"", ""expires_in"": 900}")
+                    : TicketUnless(request, issued == "stale" ? "renewed" : issued));
+            var client = new SupportGateClient("https://support.example", session, transport);
+            Pump.RunToEnd(client.SubmitTicket(Draft(), "key-1", null));
+            Pump.RunToEnd(client.SubmitTicket(Draft(), "key-2", null));
+            Assert.AreEqual("Bearer renewed", transport.Last.Headers["Authorization"]);
+            Assert.AreEqual(1, transport.CountOf("/v1/session/refresh"));
+            issued = "changed";
+            Pump.RunToEnd(client.SubmitTicket(Draft(), "key-3", null));
+            Assert.AreEqual("Bearer changed", transport.Last.Headers["Authorization"]);
+        }
+
         [Test]
         public void CategoriesAndExtraFieldsAreParsed()
         {

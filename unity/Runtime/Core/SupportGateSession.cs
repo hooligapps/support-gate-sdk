@@ -29,6 +29,7 @@ namespace Hooligapps.SupportGate
     {
         private readonly SupportGateTokenRenewal _request;
         private string _token;
+        private string _providerToken;
 
         private SupportGateSession(string token, SupportGateTokenRenewal request)
         {
@@ -130,8 +131,9 @@ namespace Hooligapps.SupportGate
                 yield return routine.Current;
             }
 
-            if (!string.IsNullOrEmpty(issued))
+            if (!string.IsNullOrEmpty(issued) && issued != _providerToken)
             {
+                _providerToken = issued;
                 _token = issued;
             }
 

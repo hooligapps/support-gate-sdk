@@ -3,7 +3,7 @@
 // игра может вставить форму прямо в свою страницу.
 
 import { randomKey } from '../api';
-import { SupportGateClient } from '../client';
+import { collectClientInfo, SupportGateClient } from '../client';
 import { Logger } from '../logger';
 import {
   Attachment,
@@ -13,6 +13,8 @@ import {
   SupportGateError,
   SupportResult,
   Ticket,
+  TargetOptions,
+  TicketDraft,
 } from '../types';
 import { clear, el, humanSize, scrollTo } from './dom';
 import { Strings, strings } from './i18n';
@@ -21,13 +23,15 @@ import { Strings, strings } from './i18n';
 const ISSUE_KEY_POLLS = 6;
 const ISSUE_KEY_POLL_MS = 2000;
 
-export interface SupportFormOptions {
+export interface SupportFormOptions extends TargetOptions {
   /** Вызывается после успешной отправки, до показа экрана «отправлено». */
   onSubmitted?: (ticket: Ticket) => void;
   /** Показать кнопку «Отмена» и вызвать это при нажатии (в модалке — закрытие). */
   onCancel?: () => void;
   /** Итог: `sent` / `error`; `closed` шлёт обёртка (модалка), форма сама — нет. */
   onResult?: (result: SupportResult) => void;
+  /** Lets a surrounding window update its localized title after a target switch. */
+  onConfig?: (config: FormConfig) => void;
 }
 
 interface FileRow {
@@ -39,7 +43,8 @@ interface FileRow {
 
 export class SupportForm {
   private readonly host: HTMLElement;
-  private readonly client: SupportGateClient;
+  private client: SupportGateClient;
+  private readonly baseClient: SupportGateClient;
   private readonly options: SupportFormOptions;
 
   private text: Strings = strings();
@@ -56,11 +61,34 @@ export class SupportForm {
   private footer!: HTMLElement;
   private banner: HTMLElement | null = null;
   private submitButton: HTMLButtonElement | null = null;
+  private targetSelect: HTMLSelectElement | null = null;
+  private controller = new AbortController();
+  private onPaste: ((event: Event) => void) | null = null;
+  private disposed = false;
+  private targetLocked = false;
+  private draft: Record<string, string> = {};
+  private draftFiles: File[] = [];
+  private rendered = false;
+  private pendingDraft: TicketDraft | null = null;
+  targetId?: string;
 
   constructor(host: HTMLElement, client: SupportGateClient, options: SupportFormOptions = {}) {
     this.host = host;
     this.client = client;
+    this.baseClient = client;
     this.options = options;
+    this.targetId = options.targetId;
+    if (options.targets) {
+      if (!options.targets.length || !client.canSelectTarget
+        || options.targets.some((target) => !target.id)
+        || new Set(options.targets.map((target) => target.id)).size !== options.targets.length) {
+        throw new SupportGateError('invalid_request', 'targets require a token provider and a nonempty unique list');
+      }
+      if (this.targetId && !options.targets.some((target) => target.id === this.targetId)) {
+        throw new SupportGateError('invalid_request', 'targetId is not in targets');
+      }
+    }
+    if (this.targetId) this.client = client.forTarget(this.targetId);
   }
 
   /** Загружает справочник и рисует форму. Ошибки показывает сама. */
@@ -68,24 +96,90 @@ export class SupportForm {
     this.body = el('div', { class: 'sg-body' });
     this.footer = el('div', { class: 'sg-footer' });
     clear(this.host);
+    if (this.options.targets) {
+      const field = this.select('target', this.text.target, [
+        { id: '', label: this.text.choose }, ...this.options.targets,
+      ]);
+      this.targetSelect = field.input as unknown as HTMLSelectElement;
+      field.field.classList.add('sg-target');
+      this.targetSelect.value = this.targetId ?? '';
+      this.targetSelect.addEventListener('change', () => { void this.switchTarget(this.targetSelect!.value); });
+      this.host.appendChild(field.field);
+    }
     this.host.appendChild(this.body);
     this.host.appendChild(this.footer);
 
-    this.showState(this.text.loading);
+    if (this.options.targets && !this.targetId) {
+      this.showState(this.text.choose);
+    } else {
+      this.showState(this.text.loading);
+      await this.load();
+    }
+  }
+
+  destroy(): void {
+    this.disposed = true;
+    this.releaseSession();
+  }
+
+  private releaseSession(): void {
+    this.controller.abort();
+    if (this.onPaste) document.removeEventListener('paste', this.onPaste);
+    this.onPaste = null;
+    for (const entry of this.files) if (entry.previewUrl) revokeUrl(entry.previewUrl);
+    this.files = [];
+  }
+
+  private async switchTarget(targetId: string): Promise<void> {
+    if (this.targetLocked || this.submitting || this.sent || this.disposed) {
+      if (this.targetSelect) this.targetSelect.value = this.targetId ?? '';
+      return;
+    }
+    if (this.rendered) {
+      this.draft = {};
+      this.body.querySelectorAll<HTMLInputElement>('input:not([type="file"]), select, textarea').forEach((input) => {
+        if (!input.readOnly) this.draft[input.id] = input.value;
+      });
+      this.draftFiles = this.files.map((entry) => entry.file);
+    }
+    this.releaseSession();
+    this.controller = new AbortController();
+    this.targetId = targetId || undefined;
+    this.pendingDraft = null;
+    this.config = null;
+    this.rendered = false;
+    this.idempotencyKey = '';
+    this.submitButton = null;
+    this.showState(targetId ? this.text.loading : this.text.choose);
+    if (!targetId) return;
+    this.client = this.baseClient.forTarget(targetId);
     await this.load();
   }
 
   private async load(): Promise<void> {
+    const client = this.client;
+    const signal = this.controller.signal;
     try {
-      this.config = await this.client.form();
+      const config = await client.form(signal);
+      if (signal.aborted || this.disposed) return;
+      this.config = config;
     } catch (error) {
+      if (signal.aborted || this.disposed) return;
       Logger.log('SupportForm', 'справочник не загрузился: %s', [String(error)]);
       this.showLoadError();
       this.report('load', error);
       return;
     }
     this.text = strings(this.config.strings, this.config.locale);
+    this.host.setAttribute('lang', this.config.locale);
+    this.host.setAttribute('dir', this.config.direction || 'ltr');
+    if (this.targetSelect) {
+      const label = this.host.querySelector('label[for="sg-target"]');
+      if (label) label.textContent = this.text.target;
+      this.targetSelect.options[0].textContent = this.text.choose;
+    }
     this.renderForm();
+    this.options.onConfig?.(this.config);
   }
 
   private showState(title: string, description?: string, actions: HTMLElement[] = []): void {
@@ -175,6 +269,20 @@ export class SupportForm {
     });
     this.submitButton = submit;
     this.footer.appendChild(submit);
+    for (const id of ['sg-category', 'sg-subcategory', 'sg-subject', 'sg-description', 'sg-email']) {
+      const input = this.body.querySelector<HTMLInputElement>(`[id="${id}"]`);
+      const value = this.draft[id];
+      if (input && value !== undefined && !input.readOnly) {
+        input.value = value;
+        if (id === 'sg-category') input.dispatchEvent(new Event('change'));
+      }
+    }
+    this.body.querySelectorAll<HTMLInputElement>('[data-field^="extra."] input, [data-field^="extra."] select').forEach((input) => {
+      if (this.draft[input.id] !== undefined) input.value = this.draft[input.id];
+    });
+    this.rendered = true;
+    this.addFiles(this.draftFiles, this.body.querySelector('.sg-files') as HTMLElement);
+    this.draftFiles = [];
   }
 
   // --- поля -----------------------------------------------------------------
@@ -300,11 +408,13 @@ export class SupportForm {
       accept(files);
     };
     document.addEventListener('paste', onPaste);
+    this.onPaste = onPaste;
 
     return field;
   }
 
   private addFiles(files: File[], list: HTMLElement): void {
+    if (this.targetLocked || this.sent || this.disposed) return;
     const limits = (this.config as FormConfig).attachments;
     for (const file of files) {
       if (this.files.length >= limits.max_files) {
@@ -321,6 +431,7 @@ export class SupportForm {
 
   private addFile(file: File, list: HTMLElement): void {
     const status = el('span', { class: 'sg-size' }, [this.text.uploading]);
+    const retry = el('button', { type: 'button', class: 'sg-button', hidden: 'hidden' }, [this.text.retry]);
     const remove = el('button', { type: 'button', class: 'sg-remove', 'aria-label': this.text.remove, title: this.text.remove }, ['×']);
     const previewUrl = objectUrl(file);
     const preview = el('div', { class: 'sg-thumb' });
@@ -342,6 +453,7 @@ export class SupportForm {
       el('div', { class: 'sg-file-meta' }, [
         el('span', { class: 'sg-name', title: file.name }, [file.name]),
         status,
+        retry,
       ]),
       remove,
     ]) as HTMLLIElement;
@@ -358,18 +470,30 @@ export class SupportForm {
     // Плитка «добавить» всегда последняя.
     list.insertBefore(row, list.querySelector('.sg-drop'));
 
-    this.client.upload(file).then(
-      (attachment) => {
-        entry.attachment = attachment;
-        row.classList.remove('sg-file-pending');
-        status.textContent = humanSize(file.size);
-      },
-      (error: unknown) => {
-        // Файл не ушёл — убираем плитку, иначе отправка молча потеряет вложение.
-        drop();
-        this.showBanner(`${file.name}: ${this.describe(error)}`);
-      },
-    );
+    const signal = this.controller.signal;
+    const upload = () => {
+      if (signal.aborted || this.targetLocked || !this.files.includes(entry)) return;
+      retry.hidden = true;
+      row.classList.add('sg-file-pending');
+      status.textContent = this.text.uploading;
+      this.client.upload(file, signal).then(
+        (attachment) => {
+          if (signal.aborted || !this.files.includes(entry)) return;
+          entry.attachment = attachment;
+          row.classList.remove('sg-file-pending');
+          status.textContent = humanSize(file.size);
+        },
+        (error: unknown) => {
+          if (signal.aborted || !this.files.includes(entry)) return;
+          row.classList.remove('sg-file-pending');
+          status.textContent = this.describe(error);
+          retry.hidden = false;
+          this.showBanner(`${file.name}: ${this.describe(error)}`);
+        },
+      );
+    };
+    retry.addEventListener('click', upload);
+    upload();
   }
 
   // --- отправка -------------------------------------------------------------
@@ -377,32 +501,50 @@ export class SupportForm {
   private async submit(fields: SubmitFields): Promise<void> {
     if (this.submitting) return;
 
-    const draft = this.collect(fields);
+    const draft: TicketDraft | null = this.pendingDraft ?? this.collect(fields);
     if (!draft) return;
 
-    if (this.files.some((item) => !item.attachment)) {
+    if (!this.pendingDraft && this.files.some((item) => !item.attachment)) {
       this.showBanner(this.text.uploading);
       return;
     }
-    draft.attachment_ids = this.files.map((item) => (item.attachment as Attachment).attachment_id);
+    if (!this.pendingDraft) {
+      draft.attachment_ids = this.files.map((item) => (item.attachment as Attachment).attachment_id);
+      draft.client = collectClientInfo();
+    }
 
     if (!this.idempotencyKey) {
       this.idempotencyKey = randomKey();
     }
 
     this.setSubmitting(true);
+    this.targetLocked = true;
+    this.pendingDraft = draft;
+    this.body.querySelector('.sg-columns')?.setAttribute('inert', '');
+    if (this.targetSelect) this.targetSelect.disabled = true;
     try {
-      const ticket = await this.client.submit(draft, this.idempotencyKey);
+      const ticket = await this.client.submit(draft, this.idempotencyKey, this.controller.signal);
       this.sent = true;
+      this.body.querySelector('.sg-columns')?.removeAttribute('inert');
       this.options.onSubmitted?.(ticket);
       this.options.onResult?.({
+        ...(this.targetId ? { targetId: this.targetId } : {}),
         status: 'sent',
         ticket,
         ticketId: ticket.ticket_id,
         issueKey: ticket.issue_key,
       });
-      this.showSent(ticket);
+      if (!this.disposed) this.showSent(ticket);
     } catch (error) {
+      if (this.disposed) return;
+      // An explicit 4xx rejects the request. Network/5xx/parse may have saved it.
+      if (error instanceof SupportGateError && error.kind === 'http'
+        && error.status >= 400 && error.status < 500) {
+        this.targetLocked = false;
+        this.pendingDraft = null;
+        this.body.querySelector('.sg-columns')?.removeAttribute('inert');
+        if (this.targetSelect) this.targetSelect.disabled = false;
+      }
       this.setSubmitting(false);
       this.showBanner(this.describe(error));
       this.markFields(error);
@@ -486,7 +628,8 @@ export class SupportForm {
     this.submitting = active;
     if (!this.submitButton) return;
     this.submitButton.disabled = active;
-    this.submitButton.textContent = active ? this.text.submitting : this.text.submit;
+    this.submitButton.textContent = active ? this.text.submitting
+      : this.pendingDraft ? this.text.retry : this.text.submit;
   }
 
   private showBanner(message: string): void {
@@ -520,10 +663,10 @@ export class SupportForm {
     const description = this.body.querySelector('.sg-state p');
     for (let attempt = 0; attempt < ISSUE_KEY_POLLS; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, ISSUE_KEY_POLL_MS));
-      if (!description || !description.isConnected) return;
+      if (this.disposed || !description || !description.isConnected) return;
       let ticket: Ticket;
       try {
-        ticket = await this.client.ticket(ticketId);
+        ticket = await this.client.ticket(ticketId, this.controller.signal);
       } catch {
         return;
       }
@@ -541,6 +684,7 @@ export class SupportForm {
     if (!this.options.onResult) return;
     const known = error instanceof SupportGateError ? error : null;
     this.options.onResult({
+      ...(this.targetId ? { targetId: this.targetId } : {}),
       status: 'error',
       stage,
       message: known?.message || String(error),

@@ -75,6 +75,7 @@ const CSS = `
   border-top: 1px solid var(--sg-line);
 }
 .sg-field { margin-bottom: 10px; }
+.sg-target { padding: 14px 20px 0; margin-bottom: 0; flex-shrink: 0; }
 .sg-field > label {
   display: block;
   margin-bottom: 4px;

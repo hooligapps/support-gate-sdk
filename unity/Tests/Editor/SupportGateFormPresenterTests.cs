@@ -200,7 +200,7 @@ namespace Hooligapps.SupportGate.Tests
         }
 
         [UnityTest]
-        public IEnumerator RetryAfterFailureKeepsTheIdempotencyKey()
+        public IEnumerator RetryAfterFailureKeepsTheIdempotencyKeyAndPayload()
         {
             yield return new EnterPlayMode();
 
@@ -220,16 +220,46 @@ namespace Hooligapps.SupportGate.Tests
                 view.RaiseSubmit();
                 yield return null;
 
-                Assert.AreEqual(SupportGateViewState.Form, view.State);
-
+                Assert.AreEqual(SupportGateViewState.SubmitUncertain, view.State);
+                view.Values.Subject = "Edited after losing the response";
                 view.RaiseSubmit();
                 yield return null;
 
                 Assert.AreEqual(2, server.Keys.Count);
                 Assert.AreEqual(server.Keys[0], server.Keys[1]);
+                Assert.AreEqual(server.Bodies[0], server.Bodies[1]);
                 Assert.AreEqual(SupportGateViewState.Sent, view.State);
             }
 
+            UnityEngine.Object.DestroyImmediate(go);
+            yield return new ExitPlayMode();
+        }
+
+        [UnityTest]
+        public IEnumerator RetryReloadsAfterNewSessionFormFails()
+        {
+            yield return new EnterPlayMode();
+            var go = new GameObject("support gate test runner");
+            var runner = go.AddComponent<SupportGateTestRunner>();
+            var view = new View { Root = go };
+            var server = new FormRetryServer();
+            var transport = new FakeTransport(server.Handle);
+            var client = new SupportGateClient("https://support.example", SupportGateSession.FromToken("old"), transport);
+            using (var presenter = new SupportGateFormPresenter<GameObject>(client, view, new Host(), runner))
+            {
+                presenter.Open();
+                yield return null;
+                Assert.AreEqual(SupportGateViewState.Form, view.State);
+                presenter.Close();
+                client.SetSession(SupportGateSession.FromToken("new"));
+                presenter.Open();
+                yield return null;
+                Assert.AreEqual(SupportGateViewState.LoadFailed, view.State);
+                view.RaiseRetry();
+                yield return null;
+                Assert.AreEqual(SupportGateViewState.Form, view.State);
+                Assert.AreEqual(3, server.Requests);
+            }
             UnityEngine.Object.DestroyImmediate(go);
             yield return new ExitPlayMode();
         }
@@ -420,9 +450,21 @@ namespace Hooligapps.SupportGate.Tests
         /// переменные, захваченные лямбдой до EnterPlayMode, не переживают
         /// перезагрузку домена.
         /// </summary>
+        private sealed class FormRetryServer
+        {
+            public int Requests;
+            public SupportGateHttpResponse Handle(SupportGateHttpRequest request)
+            {
+                return ++Requests == 2
+                    ? new SupportGateHttpResponse(503, "{}")
+                    : new SupportGateHttpResponse(200, Json.Form);
+            }
+        }
+
         private sealed class FlakyServer
         {
             public readonly List<string> Keys = new List<string>();
+            public readonly List<string> Bodies = new List<string>();
             private int _failures = 1;
 
             public SupportGateHttpResponse Handle(SupportGateHttpRequest request)
@@ -433,6 +475,7 @@ namespace Hooligapps.SupportGate.Tests
                 }
 
                 Keys.Add(request.Headers["Idempotency-Key"]);
+                Bodies.Add(Encoding.UTF8.GetString(request.Body));
                 if (_failures-- > 0)
                 {
                     return new SupportGateHttpResponse(503, @"{""error"": ""unavailable""}");

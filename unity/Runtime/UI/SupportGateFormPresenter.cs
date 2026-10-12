@@ -29,6 +29,7 @@ namespace Hooligapps.SupportGate.UI
         private bool _customStrings;
         private SupportGateFormConfig _config;
         private string _idempotencyKey;
+        private SupportGateTicketDraft _pendingDraft;
         private int _generation;
         private bool _visible;
         private bool _sending;
@@ -119,6 +120,7 @@ namespace Hooligapps.SupportGate.UI
             _sending = false;
             _sent = false;
             _idempotencyKey = null;
+            _pendingDraft = null;
             ClearAttachments();
             _view.ShowMessage(null);
             LoadForm();
@@ -156,7 +158,7 @@ namespace Hooligapps.SupportGate.UI
         /// </summary>
         public void AttachFile(string fileName, string contentType, byte[] data)
         {
-            if (_disposed || !_visible || _config == null)
+            if (_disposed || !_visible || _config == null || _pendingDraft != null || _sent)
             {
                 return;
             }
@@ -238,6 +240,7 @@ namespace Hooligapps.SupportGate.UI
 
         private void LoadForm()
         {
+            _config = null;
             _view.SetState(SupportGateViewState.Loading);
 
             var generation = _generation;
@@ -289,7 +292,7 @@ namespace Hooligapps.SupportGate.UI
 
         private void OnCategoryChanged(string categoryId)
         {
-            if (_config == null)
+            if (_config == null || _pendingDraft != null || _sent)
             {
                 return;
             }
@@ -305,12 +308,13 @@ namespace Hooligapps.SupportGate.UI
 
         private void OnAttachRequested()
         {
+            if (_pendingDraft != null || _sent) return;
             AttachRequested?.Invoke();
         }
 
         private void OnAttachmentRemoved(int index)
         {
-            if (index < 0 || index >= _attachments.Count)
+            if (_pendingDraft != null || _sent || index < 0 || index >= _attachments.Count)
             {
                 return;
             }
@@ -322,13 +326,13 @@ namespace Hooligapps.SupportGate.UI
 
         private void OnSubmitRequested()
         {
-            if (_disposed || !_visible || _sending || _config == null)
+            if (_disposed || !_visible || _sending || _sent || _config == null)
             {
                 return;
             }
 
-            var values = _view.ReadValues();
-            var errors = Validate(values);
+            var values = _pendingDraft == null ? _view.ReadValues() : null;
+            var errors = values == null ? new Dictionary<string, string>() : Validate(values);
             if (errors.Count > 0)
             {
                 _view.ShowFieldErrors(errors);
@@ -347,7 +351,8 @@ namespace Hooligapps.SupportGate.UI
             _view.ShowFieldErrors(new Dictionary<string, string>());
             _view.ShowMessage(null);
 
-            var draft = BuildDraft(values);
+            var draft = _pendingDraft ?? BuildDraft(values);
+            _pendingDraft = draft;
 
             // Ключ живёт до успешной отправки: повтор после сбоя не создаёт дубль.
             if (string.IsNullOrEmpty(_idempotencyKey))
@@ -370,7 +375,13 @@ namespace Hooligapps.SupportGate.UI
 
                 if (!result.Success)
                 {
-                    _view.SetState(SupportGateViewState.Form);
+                    if (result.Error.Kind == SupportGateErrorKind.Http
+                        && result.Error.HttpStatus >= 400 && result.Error.HttpStatus < 500)
+                    {
+                        _pendingDraft = null;
+                    }
+                    _view.SetState(_pendingDraft == null
+                        ? SupportGateViewState.Form : SupportGateViewState.SubmitUncertain);
                     _view.ShowMessage(Describe(result.Error));
                     _view.ShowFieldErrors(result.Error.Fields);
                     Failed?.Invoke(result.Error);
@@ -379,6 +390,7 @@ namespace Hooligapps.SupportGate.UI
                 }
 
                 _idempotencyKey = null;
+                _pendingDraft = null;
                 _sent = true;
                 _view.ShowSent(_text.SentText(result.Value.DisplayId));
                 _view.SetState(SupportGateViewState.Sent);

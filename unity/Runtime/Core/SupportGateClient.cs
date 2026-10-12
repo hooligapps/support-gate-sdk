@@ -27,6 +27,7 @@ namespace Hooligapps.SupportGate
 
         private SupportGateSession _session;
         private SupportGateFormConfig _config;
+        private int _generation;
 
         public SupportGateClient(string endpoint, SupportGateSession session,
             ISupportGateTransport transport = null)
@@ -62,6 +63,7 @@ namespace Hooligapps.SupportGate
         {
             _session = session ?? throw new ArgumentNullException(nameof(session));
             _config = null;
+            _generation++;
         }
 
         /// <summary>
@@ -97,6 +99,7 @@ namespace Hooligapps.SupportGate
         public IEnumerator UploadAttachment(string fileName, string contentType, byte[] data,
             Action<SupportGateResult<SupportGateAttachment>> onDone)
         {
+            var generation = _generation;
             if (string.IsNullOrEmpty(fileName) || data == null || data.Length == 0)
             {
                 Complete(onDone, SupportGateResult<SupportGateAttachment>.Fail(
@@ -138,6 +141,7 @@ namespace Hooligapps.SupportGate
                 yield return presign.Current;
             }
 
+            if (!IsCurrent(generation, onDone)) yield break;
             if (ticket == null)
             {
                 Complete(onDone, SupportGateResult<SupportGateAttachment>.Fail(error));
@@ -169,6 +173,7 @@ namespace Hooligapps.SupportGate
                 yield return upload.Current;
             }
 
+            if (!IsCurrent(generation, onDone)) yield break;
             if (response == null || response.HasTransportError)
             {
                 Complete(onDone, SupportGateResult<SupportGateAttachment>.Fail(new SupportGateError(
@@ -243,13 +248,16 @@ namespace Hooligapps.SupportGate
         private IEnumerator Call<T>(string method, string url, string jsonBody,
             IDictionary<string, string> headers, Action<SupportGateResult<T>> onDone, Func<string, T> read)
         {
+            var session = _session;
+            var generation = _generation;
             string token = null;
-            var resolve = _session.Resolve(issued => token = issued);
+            var resolve = session.Resolve(issued => token = issued);
             while (resolve.MoveNext())
             {
                 yield return resolve.Current;
             }
 
+            if (!IsCurrent(generation, onDone)) yield break;
             if (string.IsNullOrEmpty(token))
             {
                 Complete(onDone, SupportGateResult<T>.Fail(
@@ -265,20 +273,22 @@ namespace Hooligapps.SupportGate
                 yield return send.Current;
             }
 
+            if (!IsCurrent(generation, onDone)) yield break;
             if (response != null && !response.HasTransportError && response.StatusCode == 401)
             {
                 var renewed = false;
-                var renew = Renew(token, ok => renewed = ok);
+                var renew = Renew(session, token, ok => renewed = ok);
                 while (renew.MoveNext())
                 {
                     yield return renew.Current;
                 }
 
+                if (!IsCurrent(generation, onDone)) yield break;
                 if (renewed)
                 {
                     // Те же заголовки и ключ идемпотентности — дубля не будет.
                     SupportGateHttpResponse retried = null;
-                    send = Send(method, url, body, jsonBody, headers, _session.Token, r => retried = r);
+                    send = Send(method, url, body, jsonBody, headers, session.Token, r => retried = r);
                     while (send.MoveNext())
                     {
                         yield return send.Current;
@@ -288,6 +298,7 @@ namespace Hooligapps.SupportGate
                 }
             }
 
+            if (!IsCurrent(generation, onDone)) yield break;
             Complete(onDone, Interpret(response, read));
         }
 
@@ -296,10 +307,10 @@ namespace Hooligapps.SupportGate
         /// (или токен задан строкой) — продление через шлюз, пока не вышел его срок.
         /// Ошибка продления не важна: наружу уйдёт исходный 401.
         /// </summary>
-        private IEnumerator Renew(string stale, Action<bool> onDone)
+        private IEnumerator Renew(SupportGateSession session, string stale, Action<bool> onDone)
         {
             var fromGame = false;
-            var ask = _session.Renew(stale, ok => fromGame = ok);
+            var ask = session.Renew(stale, ok => fromGame = ok);
             while (ask.MoveNext())
             {
                 yield return ask.Current;
@@ -326,8 +337,16 @@ namespace Hooligapps.SupportGate
                 yield break;
             }
 
-            _session.SetToken(result.Value);
+            session.SetToken(result.Value);
             onDone(true);
+        }
+
+        private bool IsCurrent<T>(int generation, Action<SupportGateResult<T>> onDone)
+        {
+            if (generation == _generation) return true;
+            Complete(onDone, SupportGateResult<T>.Fail(new SupportGateError(
+                SupportGateErrorKind.InvalidRequest, "session changed", 0, "session_changed")));
+            return false;
         }
 
         private IEnumerator Send(string method, string url, byte[] body, string jsonBody,

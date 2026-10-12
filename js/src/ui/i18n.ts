@@ -13,6 +13,7 @@ export type Catalog = Record<string, string>;
 
 export interface Strings {
   title: string;
+  target: string;
   category: string;
   subcategory: string;
   choose: string;
@@ -57,6 +58,7 @@ export function strings(catalog: Catalog = {}, locale = 'en'): Strings {
 
   return {
     title: t('title'),
+    target: t('target'),
     category: t('category'),
     subcategory: t('subcategory'),
     choose: t('choose'),

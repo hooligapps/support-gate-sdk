@@ -26,6 +26,11 @@
 
 Пакету нужен `com.unity.nuget.newtonsoft-json` — он подтянется как зависимость.
 
+URL без `#<тег или коммит>` берёт `main`; уже установленный пакет закреплён
+в `Packages/packages-lock.json`. Для обновления снова добавьте тот же URL
+через **Add package from git URL** либо укажите новый коммит после `#` в URL
+(см. [Locked Git dependencies](https://docs.unity3d.com/2021.3/Documentation/Manual/upm-git.html)).
+
 ## Самый короткий путь: форма в браузере
 
 Шлюз держит страницу `/form` с той же веб-формой, что у веб-игр. Игра открывает
@@ -49,6 +54,11 @@ SupportGateBrowser.Open("https://support.flushee.work", sessionToken);
 ## Минимум
 
 ```csharp
+using Hooligapps.SupportGate;
+using Hooligapps.SupportGate.UI;
+using Hooligapps.SupportGate.UI.UIToolkit;
+using UnityEngine.UIElements;
+
 var session = SupportGateSession.FromProvider(RequestToken);
 var client = new SupportGateClient("https://support.flushee.work", session);
 var view = new SupportGateFormElement();            // или SupportGateFormView для uGUI
@@ -151,7 +161,10 @@ yield return client.SubmitTicket(draft, key, result => ticket = result.Value);
 
 `key` — ключ идемпотентности: повтор после сетевой ошибки с тем же ключом вернёт
 то же обращение, а не создаст второе. Презентер держит ключ до успешной отправки
-сам.
+сам. При потере ответа или HTTP 5xx он сохраняет исходный payload и блокирует
+редактирование (`SubmitUncertain`): повтор отправляет ровно тот же запрос.
+После HTTP 4xx поля доступны для исправления. Свои реализации вью должны
+также блокировать поля в `Sending`, `SubmitUncertain` и `Sent`.
 
 ## Тесты
 

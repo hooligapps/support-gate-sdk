@@ -125,14 +125,23 @@ namespace Hooligapps.SupportGate.UI.UGUI
         {
             gameObject.SetActive(state != SupportGateViewState.Hidden);
 
-            var showsForm = state == SupportGateViewState.Form || state == SupportGateViewState.Sending;
+            var showsForm = state == SupportGateViewState.Form || state == SupportGateViewState.Sending
+                || state == SupportGateViewState.SubmitUncertain;
             if (_formRoot != null) _formRoot.SetActive(showsForm);
+            if (_formRoot != null)
+            {
+                foreach (var control in _formRoot.GetComponentsInChildren<Selectable>(true))
+                    control.interactable = state == SupportGateViewState.Form;
+            }
+            if (_email != null) _email.interactable = state == SupportGateViewState.Form && !_emailLocked;
+            if (_cancel != null) _cancel.interactable = true;
             if (_stateRoot != null) _stateRoot.SetActive(!showsForm && state != SupportGateViewState.Hidden);
 
             if (_submit != null)
             {
                 _submit.gameObject.SetActive(showsForm);
-                _submit.interactable = state == SupportGateViewState.Form;
+                _submit.interactable = state == SupportGateViewState.Form
+                    || state == SupportGateViewState.SubmitUncertain;
             }
 
             if (_attach != null)
@@ -152,7 +161,8 @@ namespace Hooligapps.SupportGate.UI.UGUI
 
             if (_submitText != null)
             {
-                _submitText.text = state == SupportGateViewState.Sending ? _text.Submitting : _text.Submit;
+                _submitText.text = state == SupportGateViewState.Sending ? _text.Submitting
+                    : state == SupportGateViewState.SubmitUncertain ? _text.Retry : _text.Submit;
             }
 
             if (_cancelText != null)

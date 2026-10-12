@@ -145,11 +145,14 @@ namespace Hooligapps.SupportGate.UI.UIToolkit
             _state = state;
             style.display = state == SupportGateViewState.Hidden ? DisplayStyle.None : DisplayStyle.Flex;
 
-            var showsForm = state == SupportGateViewState.Form || state == SupportGateViewState.Sending;
+            var showsForm = state == SupportGateViewState.Form || state == SupportGateViewState.Sending
+                || state == SupportGateViewState.SubmitUncertain;
             _body.style.display = showsForm ? DisplayStyle.Flex : DisplayStyle.None;
+            _body.SetEnabled(state == SupportGateViewState.Form);
             _stateBox.style.display = showsForm ? DisplayStyle.None : DisplayStyle.Flex;
 
-            _submit.SetEnabled(state == SupportGateViewState.Form);
+            _submit.SetEnabled(state == SupportGateViewState.Form
+                || state == SupportGateViewState.SubmitUncertain);
             _drop.SetEnabled(state == SupportGateViewState.Form);
 
             switch (state)
@@ -170,6 +173,11 @@ namespace Hooligapps.SupportGate.UI.UIToolkit
                 case SupportGateViewState.Sending:
                     _submit.style.display = DisplayStyle.Flex;
                     _submit.text = _text.Submitting;
+                    break;
+                case SupportGateViewState.SubmitUncertain:
+                    _submit.style.display = DisplayStyle.Flex;
+                    _submit.text = _text.Retry;
+                    _cancel.text = _text.Cancel;
                     break;
                 case SupportGateViewState.Sent:
                     _submit.style.display = DisplayStyle.None;

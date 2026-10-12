@@ -80,7 +80,7 @@ export interface Ticket {
  * `error` — на каждую неудачную попытку (игрок может повторить); `closed` —
  * только если окно закрыли, так и не отправив.
  */
-export type SupportResult =
+export type SupportResult = { targetId?: string } & (
   | { status: 'sent'; ticket: Ticket; ticketId: string; issueKey: string | null }
   | {
       status: 'error';
@@ -91,7 +91,7 @@ export type SupportResult =
       httpStatus: number;
       code: string | null;
     }
-  | { status: 'closed' };
+  | { status: 'closed' });
 
 export type ErrorKind =
   /** Запрос отклонён на клиенте и до сети не дошёл. */
@@ -134,13 +134,29 @@ export interface TokenHint {
   reason: 'expired';
 }
 
+export interface TargetTokenHint {
+  targetId: string;
+  jti: string;
+  reason?: 'expired';
+}
+
+export interface TargetOptions {
+  targetId?: string;
+  /** A list enables the selector; without it the target is fixed. */
+  targets?: Localized[];
+}
+
 /**
  * Токен сессии выпускает бэкенд игры: строкой или функцией. Функция вызывается
  * перед каждым запросом, а после 401 — ещё раз с `{reason: 'expired'}`; если
  * она вернёт тот же токен (или задана строка), клиент продлит сессию сам через
  * `POST /v1/session/refresh`.
  */
-export type TokenSource = string | ((hint?: TokenHint) => string | Promise<string>);
+// Method variance preserves existing providers typed with TokenHint while
+// allowing portal providers typed with the required target/session fields.
+export type TokenSource = string | {
+  getToken(hint?: Partial<TargetTokenHint>): string | Promise<string>;
+}['getToken'];
 
 export interface SupportGateOptions {
   /** Адрес сервиса, например https://support.flushee.work */

@@ -11,6 +11,8 @@ import {
   SupportGateOptions,
   Ticket,
   TicketDraft,
+  TargetTokenHint,
+  TokenHint,
 } from './types';
 
 export class SupportGateClient {
@@ -19,19 +21,38 @@ export class SupportGateClient {
   private config: FormConfig | null = null;
   private configPromise: Promise<FormConfig> | null = null;
 
-  constructor(options: SupportGateOptions) {
+  constructor(private readonly options: SupportGateOptions, readonly targetId?: string) {
     this.api = new Api(options);
   }
 
-  /** Справочник берётся один раз на сессию окна. */
-  form(signal?: AbortSignal): Promise<FormConfig> {
+  /** Each target owns its token, refresh state, catalog and upload session. */
+  forTarget(targetId: string): SupportGateClient {
+    const jti = randomKey();
+    const provider = this.options.token;
+    return new SupportGateClient({
+      ...this.options,
+      token: typeof provider === 'string' ? provider : (hint?: TokenHint) =>
+        (provider as (hint: TargetTokenHint) => string | Promise<string>)({ targetId, jti, ...hint }),
+    }, targetId);
+  }
+
+  get canSelectTarget(): boolean {
+    return typeof this.options.token === 'function';
+  }
+
+  /** Shared catalog requests outlive individual forms; callers ignore stale results. */
+  form(_signal?: AbortSignal): Promise<FormConfig> {
     if (this.config) {
       return Promise.resolve(this.config);
     }
     if (!this.configPromise) {
       this.configPromise = this.api
-        .form(signal)
+        .form()
         .then((config) => {
+          if (this.targetId && config.game !== this.targetId) {
+            throw new SupportGateError('invalid_request', 'token target does not match selected target',
+              0, 'target_mismatch');
+          }
           this.config = config;
           return config;
         })

@@ -19,7 +19,10 @@ namespace Hooligapps.SupportGate.UI
         Sent = 4,
 
         /// <summary>Справочник не загрузился: есть только «Повторить».</summary>
-        LoadFailed = 5
+        LoadFailed = 5,
+
+        /// <summary>Outcome unknown: inputs stay locked, submit retries the saved payload.</summary>
+        SubmitUncertain = 6
     }
 
     public enum SupportGateUploadState

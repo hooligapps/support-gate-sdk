@@ -8,7 +8,7 @@ import {
   SupportGateOptions,
   Ticket,
   TicketDraft,
-  TokenSource,
+  TokenHint,
 } from './types';
 
 interface PresignResponse {
@@ -44,14 +44,14 @@ interface RefreshResponse {
 
 export class Api {
   private readonly endpoint: string;
-  private readonly token: TokenSource;
+  private readonly token: string | ((hint?: TokenHint) => string | Promise<string>);
   private readonly timeout: number;
   /** Токен, выданный шлюзом при обновлении: он новее того, что дала игра. */
   private renewed: string | null = null;
 
   constructor(options: SupportGateOptions) {
     this.endpoint = normalizeEndpoint(options.endpoint);
-    this.token = options.token;
+    this.token = options.token as string | ((hint?: TokenHint) => string | Promise<string>);
     this.timeout = options.timeout ?? DEFAULT_TIMEOUT;
   }
 
@@ -146,7 +146,7 @@ export class Api {
    * (grace + предельное время жизни настраиваются на сервере). Ошибка
    * обновления не важна — наружу уйдёт исходный 401.
    */
-  private async renew(stale: string): Promise<boolean> {
+  private async renew(stale: string, signal?: AbortSignal): Promise<boolean> {
     if (typeof this.token === 'function') {
       try {
         const fresh = await this.token({ reason: 'expired' });
@@ -159,7 +159,8 @@ export class Api {
       }
     }
     try {
-      const response = await this.request<RefreshResponse>('POST', '/v1/session/refresh', stale);
+      const response = await this.request<RefreshResponse>('POST', '/v1/session/refresh', stale,
+        undefined, {}, signal);
       this.renewed = response.token;
       return true;
     } catch (error) {
@@ -179,7 +180,8 @@ export class Api {
     try {
       return await this.request<T>(method, path, token, body, headers, signal);
     } catch (error) {
-      if (!(error instanceof SupportGateError) || error.status !== 401 || !(await this.renew(token))) {
+      if (!(error instanceof SupportGateError) || error.status !== 401 || signal?.aborted
+        || !(await this.renew(token, signal))) {
         throw error;
       }
     }
@@ -205,7 +207,7 @@ export class Api {
         ...headers,
       },
       body: body === undefined ? undefined : JSON.stringify(body),
-      signal: signal ?? this.deadline(),
+      signal: this.deadline(signal),
     };
 
     Logger.log('Api.call', '%s %s', [method, url]);
@@ -237,10 +239,14 @@ export class Api {
     return payload as T;
   }
 
-  private deadline(): AbortSignal | undefined {
-    if (typeof AbortController === 'undefined') return undefined;
+  private deadline(signal?: AbortSignal): AbortSignal | undefined {
+    if (typeof AbortController === 'undefined') return signal;
 
     const controller = new AbortController();
+    const abort = () => controller.abort();
+    if (signal?.aborted) controller.abort();
+    else signal?.addEventListener('abort', abort, { once: true });
+    controller.signal.addEventListener('abort', () => signal?.removeEventListener('abort', abort), { once: true });
     setTimeout(() => controller.abort(), this.timeout);
     return controller.signal;
   }

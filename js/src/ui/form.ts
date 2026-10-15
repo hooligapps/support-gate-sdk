@@ -16,7 +16,7 @@ import {
   TargetOptions,
   TicketDraft,
 } from '../types';
-import { clear, el, humanSize, scrollTo } from './dom';
+import { clear, el, humanSize, icon, scrollTo } from './dom';
 import { Strings, strings } from './i18n';
 
 // Опрос номера Jira после отправки: 6 × 2 с, дальше остаётся tkt_….
@@ -24,6 +24,10 @@ const ISSUE_KEY_POLLS = 6;
 const ISSUE_KEY_POLL_MS = 2000;
 
 export interface SupportFormOptions extends TargetOptions {
+  /** Скрывает уже заданные корректные поля, оставляя описание и вложения. */
+  compact?: boolean;
+  /** Начальные значения; extra относится только к указанной категории. */
+  preset?: Partial<Pick<TicketDraft, 'category' | 'subcategory' | 'subject' | 'extra'>>;
   /** Вызывается после успешной отправки, до показа экрана «отправлено». */
   onSubmitted?: (ticket: Ticket) => void;
   /** Показать кнопку «Отмена» и вызвать это при нажатии (в модалке — закрытие). */
@@ -93,6 +97,7 @@ export class SupportForm {
 
   /** Загружает справочник и рисует форму. Ошибки показывает сама. */
   async mount(): Promise<void> {
+    this.host.classList.toggle('sg-compact', !!this.options.compact);
     this.body = el('div', { class: 'sg-body' });
     this.footer = el('div', { class: 'sg-footer' });
     clear(this.host);
@@ -209,6 +214,7 @@ export class SupportForm {
   private renderForm(): void {
     const config = this.config as FormConfig;
     const t = this.text;
+    const preset = this.options.preset ?? {};
     clear(this.body);
     clear(this.footer);
     this.files = [];
@@ -231,13 +237,22 @@ export class SupportForm {
       ]);
       clear(extraHost);
       for (const field of category?.extra_fields ?? []) {
-        extraHost.appendChild(this.extraField(field));
+        const holder = this.extraField(field);
+        const value = category?.id === preset.category ? preset.extra?.[field.id] : undefined;
+        if (value !== undefined) (holder.querySelector('input, select') as HTMLInputElement).value = value;
+        extraHost.appendChild(holder);
       }
     });
 
     const email = this.emailField(config);
     const subject = this.input('subject', t.subject, 'text', { maxlength: '255' });
     const description = this.textarea('description', t.description, 5000);
+    if (preset.category && this.categoryById(preset.category)) {
+      categorySelect.input.value = preset.category;
+      categorySelect.input.dispatchEvent(new Event('change'));
+      subcategorySelect.input.value = preset.subcategory ?? '';
+    }
+    subject.input.value = preset.subject ?? '';
 
     // Две колонки: слева что и от кого, справа сам текст. На узком экране
     // колонки складываются в одну (см. стили .sg-columns).
@@ -257,16 +272,8 @@ export class SupportForm {
     }
 
     const submit = el('button', { type: 'button', class: 'sg-button sg-primary' }, [t.submit]);
-    submit.addEventListener('click', () => {
-      void this.submit({
-        category: categorySelect,
-        subcategory: subcategorySelect,
-        email,
-        subject,
-        description,
-        extraHost,
-      });
-    });
+    const fields = { category: categorySelect, subcategory: subcategorySelect, email, subject, description, extraHost };
+    submit.addEventListener('click', () => { void this.submit(fields); });
     this.submitButton = submit;
     this.footer.appendChild(submit);
     for (const id of ['sg-category', 'sg-subcategory', 'sg-subject', 'sg-description', 'sg-email']) {
@@ -280,12 +287,56 @@ export class SupportForm {
     this.body.querySelectorAll<HTMLInputElement>('[data-field^="extra."] input, [data-field^="extra."] select').forEach((input) => {
       if (this.draft[input.id] !== undefined) input.value = this.draft[input.id];
     });
+    this.applyCompact(fields);
+    categorySelect.input.addEventListener('change', () => this.applyCompact(fields));
     this.rendered = true;
     this.addFiles(this.draftFiles, this.body.querySelector('.sg-files') as HTMLElement);
     this.draftFiles = [];
   }
 
   // --- поля -----------------------------------------------------------------
+
+  private applyCompact(fields: SubmitFields): void {
+    if (!this.options.compact) return;
+    this.body.querySelector('.sg-preset')?.remove();
+    const summary = el('div', { class: 'sg-preset' });
+    const preset = this.options.preset ?? {};
+    const hideKnown = (field: Field, expected?: string): boolean => {
+      const value = field.input.value.trim();
+      const max = Number(field.input.getAttribute('maxlength'));
+      field.field.hidden = !!expected?.trim() && value === expected.trim() && (!max || value.length <= max);
+      return field.field.hidden;
+    };
+    const addSummary = (field: Field, text: string, tag: 'h3' | 'p' = 'p') => {
+      summary.appendChild(el(tag, { 'data-preset-field': field.id }, [text]));
+    };
+    const fixedCategory = hideKnown(fields.category, preset.category);
+    hideKnown(fields.subcategory, fixedCategory ? preset.subcategory : undefined);
+    if (hideKnown(fields.subject, preset.subject)) addSummary(fields.subject, fields.subject.input.value.trim(), 'h3');
+    const category = this.categoryById(fields.category.input.value);
+    for (const holder of Array.from(fields.extraHost.querySelectorAll<HTMLElement>('.sg-field'))) {
+      const id = holder.getAttribute('data-field')!;
+      const name = id.replace(/^extra\./, '');
+      const input = holder.querySelector('input, select') as HTMLInputElement;
+      const field = { field: holder, input, id };
+      const expected = fixedCategory ? preset.extra?.[name] : undefined;
+      if (hideKnown(field, expected)) {
+        const definition = category?.extra_fields?.find((item) => item.id === name);
+        const value = definition?.options?.find((item) => item.id === input.value)?.label ?? input.value;
+        addSummary(field, `${definition?.label ?? name}: ${value}`);
+      }
+    }
+    if (fields.email) {
+      fields.email.field.hidden = fields.email.input.readOnly && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(fields.email.input.value);
+      if (fields.email.field.hidden) addSummary(fields.email, `${this.text.email}: ${fields.email.input.value}`);
+    }
+    if (summary.childElementCount) this.body.insertBefore(summary, this.body.firstChild);
+  }
+
+  private revealField(holder: HTMLElement, id: string): void {
+    holder.hidden = false;
+    this.body.querySelector(`[data-preset-field="${cssEscape(id)}"]`)?.remove();
+  }
 
   private wrap(id: string, label: string, control: HTMLElement): Field {
     const field = el('div', { class: 'sg-field', 'data-field': id }, [
@@ -356,7 +407,7 @@ export class SupportForm {
     // Зона загрузки — такая же плитка, как превью файлов, и стоит в одном
     // ряду с ними: ряд не растёт по высоте, пока файлов не больше пяти.
     const drop = el('li', { class: 'sg-drop', role: 'button', tabindex: '0' }, [
-      el('span', { class: 'sg-drop-icon', 'aria-hidden': 'true' }, ['+']),
+      icon('upload'),
       el('span', { class: 'sg-drop-text' }, [t.addFiles]),
     ]);
     list.appendChild(drop);
@@ -432,7 +483,7 @@ export class SupportForm {
   private addFile(file: File, list: HTMLElement): void {
     const status = el('span', { class: 'sg-size' }, [this.text.uploading]);
     const retry = el('button', { type: 'button', class: 'sg-button', hidden: 'hidden' }, [this.text.retry]);
-    const remove = el('button', { type: 'button', class: 'sg-remove', 'aria-label': this.text.remove, title: this.text.remove }, ['×']);
+    const remove = el('button', { type: 'button', class: 'sg-remove', 'aria-label': this.text.remove, title: this.text.remove }, [icon('close')]);
     const previewUrl = objectUrl(file);
     const preview = el('div', { class: 'sg-thumb' });
     if (previewUrl && file.type.indexOf('image/') === 0) {
@@ -558,6 +609,7 @@ export class SupportForm {
 
     let invalid: HTMLElement | null = null;
     const fail = (field: Field, message: string) => {
+      this.revealField(field.field, field.id);
       field.field.classList.add('sg-invalid');
       field.field.appendChild(el('div', { class: 'sg-error' }, [message]));
       invalid = invalid ?? field.field;
@@ -608,8 +660,9 @@ export class SupportForm {
     if (!(error instanceof SupportGateError)) return;
 
     for (const name of Object.keys(error.fields)) {
-      const holder = this.body.querySelector(`[data-field="${cssEscape(name)}"]`);
+      const holder = this.body.querySelector<HTMLElement>(`[data-field="${cssEscape(name)}"]`);
       if (!holder) continue;
+      this.revealField(holder, name);
       holder.classList.add('sg-invalid');
       holder.appendChild(el('div', { class: 'sg-error' }, [error.fields[name]]));
     }
@@ -634,7 +687,7 @@ export class SupportForm {
 
   private showBanner(message: string): void {
     this.banner?.remove();
-    this.banner = el('div', { class: 'sg-banner' }, [message]);
+    this.banner = el('div', { class: 'sg-banner', role: 'alert' }, [message]);
     this.body.insertBefore(this.banner, this.body.firstChild);
     scrollTo(this.banner);
   }

@@ -3,7 +3,7 @@
 
 import { SupportGateClient } from '../client';
 import { SupportResult, Ticket } from '../types';
-import { el } from './dom';
+import { el, icon } from './dom';
 import { SupportForm, SupportFormOptions } from './form';
 import { strings } from './i18n';
 import { injectStyles } from './styles';
@@ -44,13 +44,13 @@ export class SupportModal {
     const backdrop = el('div', { class: 'sg-backdrop' });
     backdrop.addEventListener('click', () => this.close());
 
-    const close = el('button', { type: 'button', class: 'sg-close', 'aria-label': 'Close' }, ['×']);
+    const close = el('button', { type: 'button', class: 'sg-close', 'aria-label': 'Close' }, [icon('close')]);
     close.addEventListener('click', () => this.close());
 
     const title = el('h2', { id: 'sg-title' }, [strings().title]);
     const dialog = el(
       'div',
-      { class: 'sg-dialog', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'sg-title' },
+      { class: `sg-dialog${this.options.compact ? ' sg-dialog-compact' : ''}`, role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'sg-title' },
       [el('div', { class: 'sg-header' }, [title, close])],
     );
 

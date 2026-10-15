@@ -1,4 +1,4 @@
-import { init, open, TokenHint, TargetTokenHint } from '../src';
+import { init, mount, open, TokenHint, TargetTokenHint } from '../src';
 
 // Compile-only compatibility checks; node's test runner only loads *.test.js.
 export function legacyIntegration() {
@@ -15,4 +15,11 @@ export function portalIntegration() {
   const provider = ({ targetId, jti }: TargetTokenHint) => `${targetId}/${jti}`;
   init({ endpoint: '/', token: provider });
   open({ targetId: 'game_a', targets: [{ id: 'game_a', label: 'Game A' }] });
+}
+
+export function paymentSupport(host: HTMLElement) {
+  mount(host, { targetId: 'game_a', compact: true, preset: {
+    category: 'payment', subcategory: 'refund', subject: 'Payment question',
+    extra: { transaction_id: 'order_123' },
+  } });
 }

@@ -625,7 +625,7 @@ export class SupportForm {
     const description = (fields.description.input as unknown as HTMLTextAreaElement).value.trim();
     if (!description) fail(fields.description, t.required);
 
-    let email: string | undefined;
+    let email = '';
     if (fields.email) {
       email = fields.email.input.value.trim();
       if (!email) {
@@ -781,7 +781,7 @@ interface Draft {
   subcategory: string;
   subject: string;
   description: string;
-  email?: string;
+  email: string;
   extra: Record<string, string>;
   attachment_ids: string[];
 }

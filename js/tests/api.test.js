@@ -23,6 +23,7 @@ test('токен можно отдавать функцией — бэкенд �
 
   await client.form();
   await client.submit({
+    email: 'player@example.com',
     category: 'gameplay',
     subcategory: 'progress',
     subject: 's',
@@ -62,7 +63,7 @@ test('отправка несёт ключ идемпотентности и д�
   const client = SupportGate.init({ endpoint: 'https://support.example', token: 't' });
 
   const ticket = await client.submit(
-    { category: 'gameplay', subcategory: 'progress', subject: 's', description: 'd' },
+    { email: 'player@example.com', category: 'gameplay', subcategory: 'progress', subject: 's', description: 'd' },
     'key-1',
   );
 
@@ -82,7 +83,7 @@ test('ошибка сервиса разворачивается в код и п
   const client = SupportGate.init({ endpoint: 'https://support.example', token: 't' });
 
   await assert.rejects(
-    () => client.submit({ category: 'g', subcategory: 's', subject: 's', description: 'd' }),
+    () => client.submit({ email: 'player@example.com', category: 'g', subcategory: 's', subject: 's', description: 'd' }),
     (error) => {
       assert.equal(error.kind, 'http');
       assert.equal(error.status, 422);
@@ -101,7 +102,7 @@ test('429 и 5xx помечаются как временные', async () => {
   const client = SupportGate.init({ endpoint: 'https://support.example', token: 't' });
 
   await assert.rejects(
-    () => client.submit({ category: 'g', subcategory: 's', subject: 's', description: 'd' }),
+    () => client.submit({ email: 'player@example.com', category: 'g', subcategory: 's', subject: 's', description: 'd' }),
     (error) => error.transient === true,
   );
 });
@@ -140,7 +141,7 @@ test('файл уходит прямо в хранилище, а сервису 
   assert.equal(attachment.attachment_id, 'att-1');
 });
 
-const DRAFT = { category: 'gameplay', subcategory: 'progress', subject: 's', description: 'd' };
+const DRAFT = { email: 'player@example.com', category: 'gameplay', subcategory: 'progress', subject: 's', description: 'd' };
 
 function expiredUnless(token) {
   return (call) =>

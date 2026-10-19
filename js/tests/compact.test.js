@@ -10,7 +10,7 @@ const preset = {
 async function compactForm(options = {}, routes = {}) {
   const context = setup({
     'GET /v1/form': () => json(200, { ...FORM,
-      prefill: { email: 'player@example.com', email_locked: true } }),
+      prefill: { email: 'player@example.com', email_locked: false } }),
     ...routes,
   });
   context.SupportGate.init({ endpoint: 'https://support.example', token: 't' });
@@ -22,9 +22,12 @@ async function compactForm(options = {}, routes = {}) {
 
 test('compact form sends preset fields and still requires a description', async () => {
   const { $, calls } = await compactForm();
-  for (const name of ['category', 'subcategory', 'subject', 'email', 'extra.payment_method']) {
+  for (const name of ['category', 'subcategory', 'subject', 'extra.payment_method']) {
     assert.equal($(`[data-field="${name}"]`).hidden, true, name);
   }
+  assert.equal($('[data-field="email"]').hidden, false);
+  assert.equal($('#sg-email').readOnly, false);
+  $('#sg-email').value = 'reply@example.com';
   assert.match($('.sg-preset').textContent, /Payment question/);
   assert.match($('.sg-preset').textContent, /Apple/);
   $('.sg-primary').click();
@@ -38,7 +41,7 @@ test('compact form sends preset fields and still requires a description', async 
   assert.equal(body.subcategory, preset.subcategory);
   assert.equal(body.subject, preset.subject);
   assert.deepEqual(body.extra, preset.extra);
-  assert.equal(body.email, 'player@example.com');
+  assert.equal(body.email, 'reply@example.com');
 });
 
 test('missing required extra fields stay visible and block sending', async () => {
@@ -50,7 +53,7 @@ test('missing required extra fields stay visible and block sending', async () =>
   assert.equal(calls.filter((call) => call.key === 'POST /v1/tickets').length, 0);
 });
 
-test('invalid presets and an unconfirmed email remain editable', async () => {
+test('invalid presets and an empty email remain editable', async () => {
   const { $ } = await compactForm({ preset: {
     category: 'unknown', subcategory: 'unknown', subject: 'x'.repeat(256),
   } }, { 'GET /v1/form': () => json(200, FORM) });

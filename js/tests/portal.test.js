@@ -59,7 +59,7 @@ test('selector without a default waits for a target before fetching', async () =
   form.destroy();
 });
 
-test('switch keeps draft, refreshes email and reuploads files under the new target', async () => {
+test('switch keeps draft and reply email and reuploads files under the new target', async () => {
   let upload = 0;
   const results = [];
   const { $, dom, calls, hints, form } = await portalForm({
@@ -67,7 +67,7 @@ test('switch keeps draft, refreshes email and reuploads files under the new targ
   }, {
     'GET /v1/form': (call) => json(200, {
       ...FORM, game: targetOf(call), prefill: targetOf(call) === 'game_b'
-        ? { email: 'verified@example.com', email_locked: true } : FORM.prefill,
+        ? { email: 'other@example.com', email_locked: false } : FORM.prefill,
     }),
     'POST /v1/attachments/presign': () => json(200, {
       attachment_id: `att-${++upload}`, upload_url: 'https://storage.example/att-1',
@@ -82,13 +82,14 @@ test('switch keeps draft, refreshes email and reuploads files under the new targ
   await until(() => $('.sg-file:not(.sg-file-pending)'), 'first upload');
   const firstJti = hints[0].jti;
   select($('#sg-target'), 'game_b');
-  await until(() => $('.sg-file:not(.sg-file-pending)') && $('#sg-email')?.readOnly, 'new upload');
+  await until(() => upload === 2 && $('.sg-file:not(.sg-file-pending)'), 'new upload');
   assert.equal($('#sg-subject').value, 'Lost purchase');
   assert.equal($('#sg-description').value, 'My purchase is missing');
   assert.equal($('#sg-category').value, 'payment');
   assert.equal($('#sg-subcategory').value, 'refund');
   assert.equal($('[id="sg-extra.payment_method"]').value, 'apple');
-  assert.equal($('#sg-email').value, 'verified@example.com');
+  assert.equal($('#sg-email').value, 'player@example.com');
+  assert.equal($('#sg-email').readOnly, false);
   assert.notEqual(hints.at(-1).jti, firstJti);
   assert.deepEqual(calls.filter((c) => c.key === 'POST /v1/attachments/presign').map(targetOf),
     ['game_a', 'game_b']);
@@ -97,6 +98,7 @@ test('switch keeps draft, refreshes email and reuploads files under the new targ
   const sent = calls.find((c) => c.key === 'POST /v1/tickets');
   assert.equal(targetOf(sent), 'game_b');
   assert.deepEqual(sent.body.attachment_ids, ['att-2']);
+  assert.equal(sent.body.email, 'player@example.com');
   assert.equal(results[0].targetId, 'game_b');
   form.destroy();
 });

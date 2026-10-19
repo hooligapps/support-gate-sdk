@@ -62,7 +62,7 @@ export interface TicketDraft {
   subcategory: string;
   subject: string;
   description: string;
-  email?: string;
+  email: string;
   extra?: Record<string, string>;
   attachment_ids?: string[];
   client?: ClientInfo;

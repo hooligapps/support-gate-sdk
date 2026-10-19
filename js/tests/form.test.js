@@ -50,17 +50,25 @@ test('пустые обязательные поля не дают отправ�
   assert.ok(host.querySelectorAll('.sg-invalid').length >= 3);
 });
 
-test('подтверждённая почта показана, но не редактируется', async () => {
-  const { $ } = await openForm({
+test('почта из токена редактируется и отправляется из формы', async () => {
+  const { $, calls } = await openForm({
     'GET /v1/form': () =>
       json(200, {
         ...require('./harness').FORM,
-        prefill: { email: 'player@example.com', email_locked: true },
+        prefill: { email: 'player@example.com', email_locked: false },
       }),
   });
 
   assert.equal($('#sg-email').value, 'player@example.com');
-  assert.ok($('#sg-email').hasAttribute('readonly'));
+  assert.equal($('#sg-email').readOnly, false);
+  setValue($('#sg-category'), 'gameplay');
+  $('#sg-subcategory').value = 'progress';
+  $('#sg-subject').value = 'Question';
+  $('#sg-description').value = 'Details';
+  $('#sg-email').value = 'reply@example.com';
+  $('.sg-footer .sg-primary').click();
+  await until(() => calls.some((c) => c.key === 'POST /v1/tickets'), 'отправку обращения');
+  assert.equal(calls.find((c) => c.key === 'POST /v1/tickets').body.email, 'reply@example.com');
 });
 
 test('заполненная форма отправляется одним запросом', async () => {

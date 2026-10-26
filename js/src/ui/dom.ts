@@ -22,7 +22,7 @@ export function clear(node: Element): void {
   }
 }
 
-export function icon(name: 'close' | 'upload'): SVGSVGElement {
+export function icon(name: 'close' | 'upload' | 'copy'): SVGSVGElement {
   const ns = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(ns, 'svg');
   svg.setAttribute('class', 'sg-icon');
@@ -37,7 +37,9 @@ export function icon(name: 'close' | 'upload'): SVGSVGElement {
   const path = document.createElementNS(ns, 'path');
   path.setAttribute('d', name === 'close'
     ? 'M18 6 6 18M6 6l12 12'
-    : 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12');
+    : name === 'copy'
+      ? 'M9 9h12v12H9zM15 5V3H3v12h2'
+      : 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12');
   svg.appendChild(path);
   return svg;
 }

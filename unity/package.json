@@ -1,6 +1,6 @@
 {
   "name": "com.hooligapps.supportgate",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "displayName": "Support Gate",
   "description": "Клиент Support Gateway: форма обращения в поддержку со справочником категорий с сервера, вложениями и доставкой в Jira Service Management. Готовые рендереры для uGUI и UI Toolkit.",
   "unity": "2021.3",

@@ -92,6 +92,10 @@ test('заполненная форма отправляется одним за
 
 test('после успеха показан номер обращения', async () => {
   const { $, host, calls } = await openForm();
+  let copied;
+  Object.defineProperty(navigator, 'clipboard', { configurable: true,
+    value: { writeText: async (value) => { copied = value; } },
+  });
 
   setValue($('#sg-category'), 'gameplay');
   $('#sg-subcategory').value = 'progress';
@@ -103,6 +107,27 @@ test('после успеха показан номер обращения', asy
   await until(() => host.querySelector('.sg-state'), 'экран «отправлено»');
   assert.match(host.querySelector('.sg-state').textContent, /SUP-1/);
   assert.equal(calls.filter((c) => c.key === 'POST /v1/tickets').length, 1);
+  assert.equal($('.sg-ticket-number').getAttribute('aria-label'), 'Copy request number: SUP-1');
+  $('.sg-ticket-number').click();
+  await until(() => $('.sg-copy-status').textContent === 'Copied', 'подтверждение копирования');
+  assert.equal(copied, 'SUP-1');
+});
+
+test('при запрете буфера номер выделяется для ручного копирования', async () => {
+  const { $, dom } = await openForm();
+  Object.defineProperty(navigator, 'clipboard', { configurable: true,
+    value: { writeText: async () => { throw new Error('NotAllowedError'); } },
+  });
+  setValue($('#sg-category'), 'gameplay');
+  $('#sg-subcategory').value = 'progress';
+  $('#sg-email').value = 'player@example.com';
+  $('#sg-subject').value = 's';
+  $('#sg-description').value = 'd';
+  $('.sg-footer .sg-primary').click();
+  await until(() => $('.sg-ticket-number'), 'номер обращения');
+  $('.sg-ticket-number').click();
+  await until(() => $('.sg-copy-status').textContent.includes('Could not copy'), 'ручное копирование');
+  assert.equal(dom.window.getSelection().toString(), 'SUP-1');
 });
 
 test('номер Jira подставляется, когда воркер доставит обращение', async () => {
@@ -137,6 +162,13 @@ test('номер Jira подставляется, когда воркер дос
     globalThis.setTimeout = realSetTimeout;
   }
   assert.equal(calls.filter((c) => c.key === 'GET /v1/tickets/tkt-1').length, 2);
+  let copied;
+  Object.defineProperty(navigator, 'clipboard', { configurable: true,
+    value: { writeText: async (value) => { copied = value; } },
+  });
+  host.querySelector('.sg-ticket-number').click();
+  await until(() => copied, 'копирование обновлённого номера');
+  assert.equal(copied, 'SUP-7');
 });
 
 test('повтор после ошибки идёт с тем же ключом идемпотентности', async () => {

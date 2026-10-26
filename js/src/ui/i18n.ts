@@ -40,6 +40,9 @@ export interface Strings {
   retry: string;
   sentTitle: string;
   sentText: (id: string) => string;
+  copyTicket: string;
+  copied: string;
+  copyFailed: string;
   failedTitle: string;
   rateLimited: string;
   sessionExpired: string;
@@ -85,6 +88,9 @@ export function strings(catalog: Catalog = {}, locale = 'en'): Strings {
     retry: t('retry'),
     sentTitle: t('sent_title'),
     sentText: (id) => t('sent_text', { id }),
+    copyTicket: t('copy_ticket'),
+    copied: t('copied'),
+    copyFailed: t('copy_failed'),
     failedTitle: t('failed_title'),
     rateLimited: t('rate_limited'),
     sessionExpired: t('session_expired'),

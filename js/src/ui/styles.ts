@@ -97,6 +97,7 @@ const CSS = `
   cursor: pointer;
 }
 .sg-close:hover, .sg-remove:hover { border-color: rgba(255, 255, 255, 0.4); background: rgba(20, 23, 35, 0.9); }
+.sg-close { width: 44px; min-width: 44px; max-width: 44px; height: 44px; margin: 0; margin-inline-start: auto; }
 .sg-icon { display: block; width: 20px; height: 20px; pointer-events: none; }
 /* Тело сжимается и прокручивается внутри окна; подвал остаётся доступным. */
 .sg-content { display: flex; flex-direction: column; min-height: 0; flex: 1; }
@@ -214,6 +215,26 @@ const CSS = `
 .sg-state { padding: 28px 20px; text-align: center; color: var(--sg-muted); overflow-wrap: anywhere; }
 .sg-state h3 { margin-bottom: 8px; font-size: 18px; color: var(--sg-fg); }
 .sg-state p { margin: 0; }
+.sg-ticket-number {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: auto;
+  max-width: 100%;
+  min-height: 44px;
+  margin: 4px;
+  padding: 8px 12px;
+  border: 1px solid var(--sg-line-strong);
+  border-radius: 9px;
+  background: var(--sg-raised);
+  color: var(--sg-fg);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.sg-ticket-number:hover { border-color: var(--sg-accent-soft); }
+.sg-ticket-number span { min-width: 0; overflow-wrap: anywhere; user-select: text; -webkit-user-select: text; }
+.sg-copy-status { display: block; min-height: 1.5em; margin-top: 4px; font-size: 12px; }
 .sg-banner { margin-bottom: 14px; padding: 10px 12px; border: 1px solid rgba(255, 157, 151, 0.25); border-radius: 12px; background: rgba(255, 157, 151, 0.08); color: var(--sg-danger); overflow-wrap: anywhere; }
 .sg-dialog-compact { max-width: 560px; }
 .sg-compact .sg-columns { flex-direction: column; gap: 0; }

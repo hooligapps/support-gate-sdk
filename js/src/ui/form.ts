@@ -702,9 +702,37 @@ export class SupportForm {
       this.text.sentText(ticket.issue_key || ticket.ticket_id),
       this.options.onCancel ? [close] : [],
     );
+    const description = this.body.querySelector<HTMLElement>('.sg-state p')!;
+    this.renderTicketNumber(description, ticket.issue_key || ticket.ticket_id);
     if (!ticket.issue_key) {
       void this.awaitIssueKey(ticket.ticket_id);
     }
+  }
+
+  private renderTicketNumber(description: HTMLElement, id: string): void {
+    const value = el('span', { dir: 'ltr' }, [id]);
+    const number = el('button', {
+      type: 'button', class: 'sg-ticket-number', title: this.text.copyTicket,
+      'aria-label': `${this.text.copyTicket}: ${id}`,
+    }, [value, icon('copy')]);
+    const status = el('span', { class: 'sg-copy-status', role: 'status' });
+    number.addEventListener('click', async () => {
+      status.textContent = '';
+      try {
+        if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable');
+        await navigator.clipboard.writeText(id);
+        status.textContent = this.text.copied;
+      } catch {
+        const range = document.createRange();
+        range.selectNodeContents(value);
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        status.textContent = this.text.copyFailed;
+      }
+    });
+    const [before, after] = this.text.sentText('{id}').split('{id}');
+    description.replaceChildren(before, number, after, status);
   }
 
   /**
@@ -713,7 +741,7 @@ export class SupportForm {
    * дождались — остаётся внутренний номер, по нему поддержка тоже найдёт.
    */
   private async awaitIssueKey(ticketId: string): Promise<void> {
-    const description = this.body.querySelector('.sg-state p');
+    const description = this.body.querySelector<HTMLElement>('.sg-state p');
     for (let attempt = 0; attempt < ISSUE_KEY_POLLS; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, ISSUE_KEY_POLL_MS));
       if (this.disposed || !description || !description.isConnected) return;
@@ -725,7 +753,7 @@ export class SupportForm {
       }
       if (ticket.issue_key) {
         if (description.isConnected) {
-          description.textContent = this.text.sentText(ticket.issue_key);
+          this.renderTicketNumber(description, ticket.issue_key);
         }
         return;
       }

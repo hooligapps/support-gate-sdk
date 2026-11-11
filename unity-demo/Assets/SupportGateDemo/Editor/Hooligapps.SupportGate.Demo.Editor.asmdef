@@ -2,7 +2,8 @@
   "name": "Hooligapps.SupportGate.Demo.Editor",
   "rootNamespace": "Hooligapps.SupportGate.Demo.Editor",
   "references": [
-    "Hooligapps.SupportGate.Demo"
+    "Hooligapps.SupportGate.Demo",
+    "Hooligapps.SupportGate.Prefabs"
   ],
   "includePlatforms": [
     "Editor"

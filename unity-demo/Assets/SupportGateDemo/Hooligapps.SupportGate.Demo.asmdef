@@ -5,7 +5,8 @@
     "Hooligapps.SupportGate.Core",
     "Hooligapps.SupportGate.UI",
     "Hooligapps.SupportGate.UI.UGUI",
-    "Hooligapps.SupportGate.UI.UIToolkit"
+    "Hooligapps.SupportGate.UI.UIToolkit",
+    "Hooligapps.SupportGate.Prefabs"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

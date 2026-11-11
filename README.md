@@ -9,12 +9,26 @@
 | [`js/`](js/README.md) | окно обращения для веб-игр: UMD-бандл, его отдаёт сам шлюз |
 | [`unity/`](unity/README.md) | UPM-пакет: клиент и форма для Unity (uGUI и UI Toolkit) |
 | [`unity-demo/`](unity-demo/README.md) | Unity-проект: стенд формы без сети и play-mode тесты пакета |
+| [`dist/SupportGate-UGUI.unitypackage`](dist/SupportGate-UGUI.unitypackage) | белый и чёрный префабы, графика и шрифт; [подключение](docs/unity-ugui-prefabs.md) |
 | [`docs/integration.md`](docs/integration.md) | что сделать на бэкенде игры: токен сессии, подключение SDK |
 
 Этот репозиторий — публикуемый снимок SDK из основного репозитория шлюза;
 релиз приходит одним коммитом с тегом `vX.Y.Z`, ручная публикация обновляет
 `main` коммитом `SDK snapshot (<коммит источника>)` без нового тега. Правки и предложения —
 через issues и pull requests: они переносятся в источник вручную.
+
+## Версия 0.4.0
+
+Готовые белое и чёрное uGUI-окна поставляются в
+[`SupportGate-UGUI.unitypackage`](dist/SupportGate-UGUI.unitypackage).
+Установите Unity SDK через
+`https://github.com/hooligapps/support-gate-sdk.git?path=/unity#v0.4.0`,
+затем импортируйте архив. Подключение и переход с локальных компонентов Order
+описаны в [инструкции](docs/unity-ugui-prefabs.md).
+
+Проверены импорт архива и 6 Play Mode тестов в Unity 6000.6.5f1.
+Изменения этой версии относятся к Unity; версия JS-пакета синхронизирована
+с общим тегом репозитория.
 
 ## Контракт
 

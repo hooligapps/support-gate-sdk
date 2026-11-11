@@ -3,14 +3,11 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.UIElements;
+using Hooligapps.SupportGate.Prefabs;
 
 namespace Hooligapps.SupportGate.Demo.Editor
 {
-    /// <summary>
-    /// Собирает демо-сцену: сам стенд, UIDocument с PanelSettings и ссылку на USS
-    /// пакета. Всё остальное стенд строит в рантайме, поэтому сцена пересоздаётся
-    /// в один клик и её не нужно чинить руками после правок кода.
-    /// </summary>
+    // Creates the demo scene and assigns both serialized uGUI prefabs and the UI Toolkit stylesheet.
     public static class SupportGateDemoSceneBuilder
     {
         private const string PackageUss = "Packages/com.hooligapps.supportgate/Runtime/UI.UIToolkit/Uss/SupportGate.uss";
@@ -81,6 +78,8 @@ namespace Hooligapps.SupportGate.Demo.Editor
             var serialized = new SerializedObject(app);
             serialized.FindProperty("_document").objectReferenceValue = document;
             serialized.FindProperty("_styleSheet").objectReferenceValue = Load<StyleSheet>(PackageUss);
+            serialized.FindProperty("_lightPrefab").objectReferenceValue = Load<SupportGateForm>("Assets/SupportGateUGUI/SupportGateForm.prefab");
+            serialized.FindProperty("_darkPrefab").objectReferenceValue = Load<SupportGateForm>("Assets/SupportGateUGUI/SupportGateFormDark.prefab");
             serialized.ApplyModifiedPropertiesWithoutUndo();
 
             EditorSceneManager.SaveScene(scene, ScenePath);

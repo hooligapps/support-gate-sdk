@@ -392,6 +392,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0935509b93533403ba5064e7fe0f3731, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Hooligapps.SupportGate.Demo::Hooligapps.SupportGate.Demo.SupportGateDemoApp
+  _lightPrefab: {fileID: 1811605027471687588, guid: b649113a7229e417c8b32ae1b4ad27a9, type: 3}
+  _darkPrefab: {fileID: 7844920082940712573, guid: c4d2535b805343e2ad152a912944e71c, type: 3}
+  _darkTheme: 0
   _document: {fileID: 629015467}
   _styleSheet: {fileID: 7433441132597879392, guid: 4cea60c91feb44fba3723620e15852fe, type: 3}
   _useDemoServer: 1

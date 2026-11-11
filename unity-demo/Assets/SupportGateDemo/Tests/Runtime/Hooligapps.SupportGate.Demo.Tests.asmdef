@@ -9,7 +9,8 @@
     "Hooligapps.SupportGate.Demo",
     "UnityEngine.UI",
     "UnityEngine.TestRunner",
-    "UnityEditor.TestRunner"
+    "UnityEditor.TestRunner",
+    "Hooligapps.SupportGate.Prefabs"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

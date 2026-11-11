@@ -1,0 +1,9 @@
+{
+  "name": "Hooligapps.SupportGate.Prefabs",
+  "rootNamespace": "Hooligapps.SupportGate.Prefabs",
+  "references": [
+    "Hooligapps.SupportGate.Core",
+    "Hooligapps.SupportGate.UI",
+    "UnityEngine.UI"
+  ]
+}

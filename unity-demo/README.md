@@ -11,8 +11,7 @@
 
 ## Запуск
 
-1. Открыть папку `sdk/unity-demo` как проект (Unity 2021.3+; файл версии
-   указывает 6000.4.1f1, другой редактор просто предложит апгрейд).
+1. Открыть папку `unity-demo` в Unity 6000.6.5f1. Готовые префабы проверяются на этой версии.
 2. Демо-сцена собирается сама при первом открытии проекта. Если её нет (или
    нужно пересобрать после правок) — меню **Tools → Support Gate → Собрать
    демо-сцену**: сцена создаётся заново вместе с `UIDocument` и `PanelSettings`,
@@ -20,13 +19,14 @@
 3. Нажать **Play**. Слева — панель управления на IMGUI, справа вверху — кнопка
    «Support», как она стояла бы в HUD игры.
 
-Сцену можно пересобирать сколько угодно: весь UI стенд строит в рантайме, руками
-в ней ничего не настроено.
+uGUI использует готовые префабы из `Assets/SupportGateUGUI`. В сцене назначены
+ссылки на белое окно и чёрный вариант. Переключатель **Light / Dark** меняет тему.
 
 ## Что можно потрогать
 
 | Переключатель | Что проверяет |
 | --- | --- |
+| Light / Dark | Белый и чёрный uGUI-префабы |
 | uGUI / UI Toolkit | Одна и та же форма на двух рендерерах |
 | Ответ на `/v1/form` | английский, русский, арабский (RTL, шесть форм plural), почта из токена (поле заблокировано), HTTP 500, 401, нет сети |
 | Ответ на `/v1/tickets` | принято с ключом Jira, в очереди (без ключа — показывается `ticket_id`), ошибки полей от сервера, 429, 503, нет сети |
@@ -49,18 +49,16 @@
 Из командной строки:
 
 ```sh
-Unity -batchmode -nographics -projectPath sdk/unity-demo -runTests -testPlatform EditMode -testResults /tmp/editmode.xml
-Unity -batchmode -nographics -projectPath sdk/unity-demo -runTests -testPlatform PlayMode -testResults /tmp/playmode.xml
+Unity -batchmode -nographics -projectPath unity-demo -runTests -testPlatform EditMode -testResults /tmp/editmode.xml
+Unity -batchmode -nographics -projectPath unity-demo -runTests -testPlatform PlayMode -testResults /tmp/playmode.xml
 ```
 
-## Чего в демо намеренно нет
+## Префабы и экспорт
 
-- **Префабов.** uGUI-форма собирается кодом (`SupportGateDemoUGuiFactory`):
-  раскладка и палитра повторяют веб-форму (шапка, две колонки, плитки вложений,
-  подвал), скругления — процедурный спрайт. В игре то же самое собирается
-  префабом с теми же ссылками во вью. UI Toolkit показывает USS пакета.
-- **Сервера.** Лимиты, справочник и доставка в Jira живут на шлюзе; демо-сервер
-  просто отдаёт выбранный ответ.
+[`../docs/unity-ugui-prefabs.md`](../docs/unity-ugui-prefabs.md) описывает
+установку, зависимости, жизненный цикл и редизайн.
+**Tools → Support Gate → Export uGUI package** собирает архив в `../dist`.
+Компоненты формы поставляются через UPM, ассеты через архив.
 
 ## Подключение к шлюзу
 
@@ -81,7 +79,7 @@ Unity -batchmode -nographics -projectPath sdk/unity-demo -runTests -testPlatform
 | `SupportGateDemoApp.cs` | Стенд: сборка обоих рендереров, панель управления, лог |
 | `SupportGateDemoTransport.cs` | Демо-сервер: сценарии ответов, задержка, «хранилище» |
 | `SupportGateDemoCatalog.cs` | Фиктивный `/v1/form` со строками из каталогов шлюза, presign и тикет |
-| `SupportGateDemoUGuiFactory.cs` | Сборка uGUI-формы кодом вместо префабов |
+| `SupportGateDemoUGuiFactory.cs` | Кнопка запуска и модальная подложка демо |
 | `SupportGateDemoHosts.cs` | Модальный и панельный хосты демо |
 | `Editor/SupportGateDemoSceneBuilder.cs` | Меню «Собрать демо-сцену» |
 | `Tests/Runtime/SupportGateDemoFlowTests.cs` | Сквозные play-mode тесты на настоящих вью |

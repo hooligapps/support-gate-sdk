@@ -1,68 +1,54 @@
 using System;
 using System.Collections;
-using System.IO;
+using Hooligapps.SupportGate.Prefabs;
 using Hooligapps.SupportGate.UI;
-using Hooligapps.SupportGate.UI.UGUI;
 using UnityEngine;
 
 namespace Hooligapps.SupportGate.Samples.UGUI
 {
-    /// <summary>
-    /// Склейка для uGUI: клиент, форма из префаба, хост и презентер. Токен здесь
-    /// берётся из инспектора — в игре его выпускает бэкенд своим секретом.
-    /// </summary>
     public sealed class SupportGateUGuiSample : MonoBehaviour
     {
-        [SerializeField] private string _endpoint = "https://support.flushee.work";
-        [SerializeField] private string _sessionToken;
-        [SerializeField] private SupportGateFormView _view;
+        [SerializeField] private SupportGateForm _prefab;
+        [SerializeField] private Transform _container;
         [SerializeField] private SupportGateCanvasHost _host;
-
+        private SupportGateForm _instance;
         private SupportGateFormPresenter<GameObject> _presenter;
 
-        private void Start()
+        // The game configures its client, token provider and file picker before opening.
+        public bool OpenSupport(SupportGateClient client, Action<SupportGateFormResult> completed,
+            Action<Action<string, string, byte[]>> pickFile = null)
         {
-            var session = SupportGateSession.FromProvider(RequestToken);
-            var client = new SupportGateClient(_endpoint, session);
-
-            _presenter = new SupportGateFormPresenter<GameObject>(client, _view, _host, this);
-            _presenter.Submitted += ticket => Debug.Log("обращение создано: " + ticket.DisplayId);
-            // Итог для аналитики игры: sent с номером, error со стадией, closed без отправки.
-            _presenter.Completed += result => Debug.Log("support: " + result);
-            _presenter.Failed += error => Debug.LogWarning(error.ToString());
-
-            // Выбор файла зависит от платформы и плагинов игры, поэтому его делает игра.
-            _presenter.AttachRequested += AttachLastScreenshot;
+            if (_presenter != null) return false;
+            _instance = Instantiate(_prefab, _container, false);
+            _instance.gameObject.SetActive(false);
+            _presenter = _instance.CreatePresenter(client, _host, this, completed, pickFile);
+            if (_presenter.Open()) return true;
+            Release();
+            return false;
         }
 
-        private void OnDestroy()
+        private void LateUpdate()
         {
-            _presenter?.Dispose();
+            // Closed precedes Completed in the presenter. Keep the result callback alive until Close returns.
+            if (_presenter != null && !_presenter.IsVisible) Release();
         }
 
-        /// <summary>Вызывается кнопкой «Поддержка» в интерфейсе игры.</summary>
-        public void OpenSupport()
+        public void CloseSupport()
         {
-            _presenter.Open();
+            _presenter?.Close();
+            Release();
         }
 
-        private IEnumerator RequestToken(Action<string> onToken)
+        private void Release()
         {
-            // В игре здесь запрос к своему бэкенду: он подписывает токен секретом игры.
-            onToken(_sessionToken);
-            yield break;
+            var presenter = _presenter;
+            _presenter = null;
+            presenter?.Dispose();
+            if (_instance != null) Destroy(_instance.gameObject);
+            _instance = null;
         }
 
-        private void AttachLastScreenshot()
-        {
-            var path = Path.Combine(Application.persistentDataPath, "support-screenshot.png");
-            if (!File.Exists(path))
-            {
-                Debug.LogWarning("нечего прикладывать: " + path);
-                return;
-            }
-
-            _presenter.AttachFile(Path.GetFileName(path), "image/png", File.ReadAllBytes(path));
-        }
+        private void OnDisable() => CloseSupport();
+        private void OnDestroy() => CloseSupport();
     }
 }

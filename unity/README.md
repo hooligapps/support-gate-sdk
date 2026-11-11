@@ -10,6 +10,7 @@
 | --- | --- | --- |
 | `Hooligapps.SupportGate.Core` | клиент, модели, транспорт, токен | — |
 | `Hooligapps.SupportGate.UI` | презентер и интерфейсы вью | Core |
+| `Hooligapps.SupportGate.Prefabs` | компоненты готовых белого и чёрного префабов | Core, UI, UnityEngine.UI |
 | `Hooligapps.SupportGate.UI.UGUI` | форма на uGUI | Core, UI |
 | `Hooligapps.SupportGate.UI.UIToolkit` | форма на UI Toolkit | Core, UI |
 
@@ -21,7 +22,7 @@
 В `Packages/manifest.json`:
 
 ```json
-"com.hooligapps.supportgate": "https://github.com/hooligapps/support-gate-sdk.git?path=/unity"
+"com.hooligapps.supportgate": "https://github.com/hooligapps/support-gate-sdk.git?path=/unity#v0.4.0"
 ```
 
 Пакету нужен `com.unity.nuget.newtonsoft-json` — он подтянется как зависимость.
@@ -30,6 +31,16 @@ URL без `#<тег или коммит>` берёт `main`; уже устан�
 в `Packages/packages-lock.json`. Для обновления снова добавьте тот же URL
 через **Add package from git URL** либо укажите новый коммит после `#` в URL
 (см. [Locked Git dependencies](https://docs.unity3d.com/2021.3/Documentation/Manual/upm-git.html)).
+
+## Готовые uGUI-префабы
+
+Белое окно и его чёрный Prefab Variant поставляются в
+[`SupportGate-UGUI.unitypackage`](../dist/SupportGate-UGUI.unitypackage).
+Компоненты входят в UPM-пакет начиная с версии `0.4.0`.
+Для этого архива установите SDK по тегу `v0.4.0`.
+[Инструкция](../docs/unity-ugui-prefabs.md) описывает зависимости при открытии,
+файловый пикер, создание вариантов, обновление и экспорт.
+Sample **uGUI host** создаёт экземпляр выбранного префаба и освобождает его при закрытии.
 
 ## Самый короткий путь: форма в браузере
 

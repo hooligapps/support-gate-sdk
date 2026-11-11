@@ -2,7 +2,10 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using Hooligapps.SupportGate.UI;
-using Hooligapps.SupportGate.UI.UGUI;
+using Hooligapps.SupportGate.Prefabs;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 using Hooligapps.SupportGate.UI.UIToolkit;
 using NUnit.Framework;
 using UnityEngine;
@@ -39,6 +42,12 @@ namespace Hooligapps.SupportGate.Demo.Tests
             _appGo.SetActive(false);
             _app = _appGo.AddComponent<SupportGateDemoApp>();
             SetField(_app, "_document", document);
+#if UNITY_EDITOR
+            SetField(_app, "_lightPrefab", AssetDatabase.LoadAssetAtPath<SupportGateForm>("Assets/SupportGateUGUI/SupportGateForm.prefab"));
+            SetField(_app, "_darkPrefab", AssetDatabase.LoadAssetAtPath<SupportGateForm>("Assets/SupportGateUGUI/SupportGateFormDark.prefab"));
+#else
+            Assert.Ignore("Prefab integration tests require the Editor asset database.");
+#endif
             _appGo.SetActive(true);
 
             yield return null;
@@ -55,6 +64,15 @@ namespace Hooligapps.SupportGate.Demo.Tests
         }
 
         [UnityTest]
+        public IEnumerator DarkPrefabShowsServerStringsAndSubmits()
+        {
+            SetField(_app, "_darkTheme", true);
+            typeof(SupportGateDemoApp).GetMethod("BuildUGuiForm", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(_app, null);
+            yield return null;
+            yield return UGuiFormShowsServerStringsAndSubmits();
+        }
+
+        [UnityTest]
         public IEnumerator UGuiFormShowsServerStringsAndSubmits()
         {
             _app.UsesUGui = true;
@@ -66,7 +84,7 @@ namespace Hooligapps.SupportGate.Demo.Tests
             Assert.IsTrue(_app.UGuiPresenter.Open());
             yield return Settle();
 
-            var view = Object.FindFirstObjectByType<SupportGateFormView>();
+            var view = Object.FindFirstObjectByType<SupportGateForm>();
             Assert.IsNotNull(view);
             Assert.IsTrue(view.gameObject.activeInHierarchy);
 
@@ -140,7 +158,7 @@ namespace Hooligapps.SupportGate.Demo.Tests
             _app.UGuiPresenter.Open();
             yield return Settle();
 
-            var view = Object.FindFirstObjectByType<SupportGateFormView>();
+            var view = Object.FindFirstObjectByType<SupportGateForm>();
             var dropdowns = Active(view.GetComponentsInChildren<Dropdown>());
             var inputs = Active(view.GetComponentsInChildren<InputField>());
 
@@ -187,7 +205,7 @@ namespace Hooligapps.SupportGate.Demo.Tests
             Assert.AreEqual(1, results.Count);
             Assert.AreEqual(SupportGateResultStage.Load, results[0].Stage);
 
-            var view = Object.FindFirstObjectByType<SupportGateFormView>();
+            var view = Object.FindFirstObjectByType<SupportGateForm>();
             Assert.IsTrue(HasText(view, "Could not load the form."));
             Assert.IsTrue(HasText(view, "No connection to the server. Check the network and try again."));
 
@@ -283,12 +301,12 @@ namespace Hooligapps.SupportGate.Demo.Tests
             }
         }
 
-        private static void Submit(SupportGateFormView view)
+        private static void Submit(SupportGateForm view)
         {
             Click(view, "Send");
         }
 
-        private static void Click(SupportGateFormView view, string label)
+        private static void Click(SupportGateForm view, string label)
         {
             foreach (var button in view.GetComponentsInChildren<Button>())
             {
@@ -303,7 +321,7 @@ namespace Hooligapps.SupportGate.Demo.Tests
             Assert.Fail("кнопка «" + label + "» не найдена");
         }
 
-        private static bool HasText(SupportGateFormView view, string value)
+        private static bool HasText(SupportGateForm view, string value)
         {
             foreach (var text in view.GetComponentsInChildren<Text>())
             {

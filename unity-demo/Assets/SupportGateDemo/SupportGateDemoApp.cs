@@ -9,7 +9,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using UnityEngine.UIElements;
-using UGUI = Hooligapps.SupportGate.UI.UGUI;
+using Hooligapps.SupportGate.Prefabs;
 using Button = UnityEngine.UI.Button;
 
 // Поля с [SerializeField] заполняет сцена.
@@ -26,6 +26,13 @@ namespace Hooligapps.SupportGate.Demo
     public sealed class SupportGateDemoApp : MonoBehaviour
     {
         private const int LogLines = 14;
+
+        [Header("uGUI prefabs")]
+        [SerializeField] private SupportGateForm _lightPrefab;
+        [SerializeField] private SupportGateForm _darkPrefab;
+        [SerializeField] private bool _darkTheme;
+        private SupportGateForm _uguiView;
+        private RectTransform _uguiLayer;
 
         [Header("UI Toolkit")]
         [SerializeField] private UIDocument _document;
@@ -113,6 +120,7 @@ namespace Hooligapps.SupportGate.Demo
         {
             _ugui?.Dispose();
             _toolkit?.Dispose();
+            if (_canvasRoot != null) Destroy(_canvasRoot);
         }
 
         private void LateUpdate()
@@ -156,17 +164,29 @@ namespace Hooligapps.SupportGate.Demo
             layer.offsetMax = Vector2.zero;
 
             var blocker = SupportGateDemoUGuiFactory.CreateBlocker(layer);
-            var view = SupportGateDemoUGuiFactory.CreateFormView(layer);
+            _uguiLayer = layer;
 
             _uguiHost = new SupportGateDemoCanvasHost(layer, blocker);
-            _ugui = new SupportGateFormPresenter<GameObject>(_client, view, _uguiHost, this);
-            Subscribe(_ugui, "uGUI");
+            BuildUGuiForm();
 
             _uguiEntry.onClick.AddListener(() =>
             {
                 Write("uGUI: клик по кнопке «Support»");
                 _ugui.Open();
             });
+        }
+
+        private void BuildUGuiForm()
+        {
+            _ugui?.Close();
+            _ugui?.Dispose();
+            if (_uguiView != null) Destroy(_uguiView.gameObject);
+            var prefab = _darkTheme ? _darkPrefab : _lightPrefab;
+            if (prefab == null) throw new InvalidOperationException("Assign both Support Gate prefabs to the demo.");
+            _uguiView = Instantiate(prefab, _uguiLayer, false);
+            _uguiView.gameObject.SetActive(false);
+            _ugui = _uguiView.CreatePresenter(_client, _uguiHost, this, null, PickFile);
+            Subscribe(_ugui, "uGUI");
         }
 
         private void BuildToolkit()
@@ -217,7 +237,7 @@ namespace Hooligapps.SupportGate.Demo
             presenter.HostRefused += () => Write(tag + ": хост запретил показ");
             presenter.Closed += () => Write(tag + ": окно закрыто");
             presenter.Completed += result => Write(tag + ": итог → " + result);
-            presenter.AttachRequested += () => PickFile(presenter);
+            if (typeof(TRoot) != typeof(GameObject)) presenter.AttachRequested += () => PickFile(presenter.AttachFile);
         }
 
         /// <summary>
@@ -227,7 +247,7 @@ namespace Hooligapps.SupportGate.Demo
         /// (NativeFilePicker / NativeGallery на мобильных, StandaloneFileBrowser на
         /// десктопе) или, как здесь, скриншот экрана.
         /// </summary>
-        private void PickFile<TRoot>(SupportGateFormPresenter<TRoot> presenter)
+        private void PickFile(Action<string, string, byte[]> attach)
         {
 #if UNITY_EDITOR
             if (!Application.isBatchMode)
@@ -239,11 +259,11 @@ namespace Hooligapps.SupportGate.Demo
                     return;
                 }
 
-                presenter.AttachFile(System.IO.Path.GetFileName(path), ContentTypeOf(path), System.IO.File.ReadAllBytes(path));
+                attach(System.IO.Path.GetFileName(path), ContentTypeOf(path), System.IO.File.ReadAllBytes(path));
                 return;
             }
 #endif
-            StartCoroutine(CaptureScreenshot(presenter));
+            StartCoroutine(CaptureScreenshot(attach));
         }
 
         private static string ContentTypeOf(string path)
@@ -264,12 +284,17 @@ namespace Hooligapps.SupportGate.Demo
 
         private IEnumerator CaptureScreenshot<TRoot>(SupportGateFormPresenter<TRoot> presenter)
         {
+            return CaptureScreenshot(presenter.AttachFile);
+        }
+
+        private IEnumerator CaptureScreenshot(Action<string, string, byte[]> attach)
+        {
             yield return new WaitForEndOfFrame();
 
             var texture = ScreenCapture.CaptureScreenshotAsTexture();
             try
             {
-                presenter.AttachFile("screenshot-" + (++_attachmentsMade) + ".png", "image/png", texture.EncodeToPNG());
+                attach("screenshot-" + (++_attachmentsMade) + ".png", "image/png", texture.EncodeToPNG());
             }
             finally
             {
@@ -327,6 +352,16 @@ namespace Hooligapps.SupportGate.Demo
             GUILayout.Label("Support Gate demo");
 
             UsesUGui = GUILayout.Toolbar(_useUGui ? 0 : 1, new[] { "uGUI", "UI Toolkit" }) == 0;
+
+            if (_useUGui)
+            {
+                var dark = GUILayout.Toolbar(_darkTheme ? 1 : 0, new[] { "Light", "Dark" }) == 1;
+                if (dark != _darkTheme)
+                {
+                    _darkTheme = dark;
+                    BuildUGuiForm();
+                }
+            }
 
             if (!_useUGui && _toolkitRoot == null)
             {

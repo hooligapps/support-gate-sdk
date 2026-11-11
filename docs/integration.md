@@ -416,3 +416,8 @@ curl -s -X POST localhost:8000/v1/dev/token -H 'Content-Type: application/json' 
 
 В проде этой ручки нет. `sdk/js/demo/index.html` умеет получать токен этой
 ручкой и открывать окно против локального сервиса.
+
+### Готовые Unity uGUI-префабы
+
+Белый и чёрный варианты окна, установка UI-архива поверх SDK, передача зависимостей
+и редизайн описаны в [инструкции uGUI](unity-ugui-prefabs.md).

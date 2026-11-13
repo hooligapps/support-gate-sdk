@@ -197,6 +197,7 @@ const CSS = `
   font-size: 12px;
   transition: border-color 0.18s, background-color 0.18s;
 }
+.sg-drop[hidden] { display: none; }
 .sg-drop:hover, .sg-drop.sg-drop-active { border-color: var(--sg-accent); background: rgba(244, 43, 95, 0.08); }
 .sg-drop > .sg-icon { width: 24px; height: 24px; color: var(--sg-accent-soft); }
 .sg-files { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; }

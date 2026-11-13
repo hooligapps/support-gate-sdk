@@ -355,3 +355,25 @@ test('удалённая плитка не уходит с обращением'
   await until(() => calls.some((c) => c.key === 'POST /v1/tickets'), 'отправку');
   assert.deepEqual(calls.filter((c) => c.key === 'POST /v1/tickets')[0].body.attachment_ids, []);
 });
+
+test('attachment limit hides picker and removal restores it', async () => {
+  const { $, dom } = await openForm();
+  const files = Array.from({ length: 3 }, (_, i) => new dom.window.File(['png'], `${i}.png`, { type: 'image/png' }));
+  $('.sg-drop').dispatchEvent(fileEvent(dom, 'drop', files));
+  assert.equal($('.sg-drop').hidden, true);
+  assert.equal($('.sg-footer .sg-primary').disabled, true);
+  await until(() => $('.sg-files').querySelectorAll('.sg-file:not(.sg-file-pending)').length === 3, 'uploads');
+  assert.equal($('.sg-footer .sg-primary').disabled, false);
+  $('.sg-remove').click();
+  assert.equal($('.sg-drop').hidden, false);
+});
+
+test('oversized file is rejected before upload and does not block sending', async () => {
+  const { $, dom, calls } = await openForm();
+  const file = new dom.window.File([new Uint8Array(5 * 1024 * 1024 + 1)], 'big.png', { type: 'image/png' });
+  $('.sg-drop').dispatchEvent(fileEvent(dom, 'drop', [file]));
+  assert.equal($('.sg-file'), null);
+  assert.match($('.sg-banner').textContent, /big\.png/);
+  assert.equal(calls.some((c) => c.key === 'POST /v1/attachments/presign'), false);
+  assert.equal($('.sg-footer .sg-primary').disabled, false);
+});

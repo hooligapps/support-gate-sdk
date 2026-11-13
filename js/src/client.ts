@@ -111,7 +111,7 @@ export class SupportGateClient {
   }
 }
 
-function checkFile(file: File, limits: AttachmentLimits): void {
+export function checkFile(file: File, limits: AttachmentLimits): void {
   if (limits.allowed_types.length && limits.allowed_types.indexOf(file.type) === -1) {
     throw new SupportGateError(
       'invalid_request',

@@ -3,7 +3,7 @@
 // игра может вставить форму прямо в свою страницу.
 
 import { randomKey } from '../api';
-import { collectClientInfo, SupportGateClient } from '../client';
+import { checkFile, collectClientInfo, SupportGateClient } from '../client';
 import { Logger } from '../logger';
 import {
   Attachment,
@@ -476,6 +476,12 @@ export class SupportForm {
         this.showBanner(`${file.name}: ${this.text.unsupportedType}`);
         continue;
       }
+      try {
+        checkFile(file, limits);
+      } catch (error) {
+        this.showBanner(`${file.name}: ${this.describe(error)}`);
+        continue;
+      }
       this.addFile(file, list);
     }
   }
@@ -513,6 +519,7 @@ export class SupportForm {
     const drop = () => {
       this.files = this.files.filter((item) => item !== entry);
       row.remove();
+      this.updateAttachmentsState(list);
       if (entry.previewUrl) revokeUrl(entry.previewUrl);
     };
     remove.addEventListener('click', drop);
@@ -520,11 +527,13 @@ export class SupportForm {
     this.files.push(entry);
     // Плитка «добавить» всегда последняя.
     list.insertBefore(row, list.querySelector('.sg-drop'));
+    this.updateAttachmentsState(list);
 
     const signal = this.controller.signal;
     const upload = () => {
       if (signal.aborted || this.targetLocked || !this.files.includes(entry)) return;
       retry.hidden = true;
+      this.updateAttachmentsState(list);
       row.classList.add('sg-file-pending');
       status.textContent = this.text.uploading;
       this.client.upload(file, signal).then(
@@ -533,6 +542,7 @@ export class SupportForm {
           entry.attachment = attachment;
           row.classList.remove('sg-file-pending');
           status.textContent = humanSize(file.size);
+          this.updateAttachmentsState(list);
         },
         (error: unknown) => {
           if (signal.aborted || !this.files.includes(entry)) return;
@@ -545,6 +555,14 @@ export class SupportForm {
     };
     retry.addEventListener('click', upload);
     upload();
+  }
+
+  private updateAttachmentsState(list: HTMLElement): void {
+    const drop = list.querySelector<HTMLElement>('.sg-drop');
+    if (drop) drop.hidden = this.files.length >= (this.config as FormConfig).attachments.max_files;
+    if (this.submitButton) {
+      this.submitButton.disabled = this.submitting || this.files.some((entry) => !entry.attachment);
+    }
   }
 
   // --- отправка -------------------------------------------------------------
@@ -680,7 +698,7 @@ export class SupportForm {
   private setSubmitting(active: boolean): void {
     this.submitting = active;
     if (!this.submitButton) return;
-    this.submitButton.disabled = active;
+    this.submitButton.disabled = active || (!this.pendingDraft && this.files.some((entry) => !entry.attachment));
     this.submitButton.textContent = active ? this.text.submitting
       : this.pendingDraft ? this.text.retry : this.text.submit;
   }

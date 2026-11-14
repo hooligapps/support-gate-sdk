@@ -1,0 +1,198 @@
+[
+  {
+    "input": "test@mail.ru",
+    "expected": "test@mail.ru"
+  },
+  {
+    "input": "User.Name+tag@sub.example.com",
+    "expected": "User.Name+tag@sub.example.com"
+  },
+  {
+    "input": "user_name@example.co.uk",
+    "expected": "user_name@example.co.uk"
+  },
+  {
+    "input": "o'connor@example.com",
+    "expected": "o'connor@example.com"
+  },
+  {
+    "input": "user!#$%&'*+-/=?^_`{|}~@example.com",
+    "expected": "user!#$%&'*+-/=?^_`{|}~@example.com"
+  },
+  {
+    "input": "  test@mail.ru  ",
+    "expected": "test@mail.ru"
+  },
+  {
+    "input": " test@mail.ru ",
+    "expected": "test@mail.ru"
+  },
+  {
+    "input": "test@xn--e1afmkfd.xn--p1ai",
+    "expected": "test@xn--e1afmkfd.xn--p1ai"
+  },
+  {
+    "input": "test@a-b.example",
+    "expected": "test@a-b.example"
+  },
+  {
+    "input": "a@b.co",
+    "expected": "a@b.co"
+  },
+  {
+    "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@example.com",
+    "expected": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@example.com"
+  },
+  {
+    "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "expected": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  },
+  {
+    "input": "",
+    "expected": null
+  },
+  {
+    "input": "   ",
+    "expected": null
+  },
+  {
+    "input": "собачка@mail.ru",
+    "expected": null
+  },
+  {
+    "input": "test@почта.рф",
+    "expected": null
+  },
+  {
+    "input": "tеst@mail.ru",
+    "expected": null
+  },
+  {
+    "input": ".test@mail.ru",
+    "expected": null
+  },
+  {
+    "input": "test.@mail.ru",
+    "expected": null
+  },
+  {
+    "input": "test..name@mail.ru",
+    "expected": null
+  },
+  {
+    "input": "test@mail..ru",
+    "expected": null
+  },
+  {
+    "input": "test@.mail.ru",
+    "expected": null
+  },
+  {
+    "input": "test@mail.ru.",
+    "expected": null
+  },
+  {
+    "input": "test@-mail.ru",
+    "expected": null
+  },
+  {
+    "input": "test@mail-.ru",
+    "expected": null
+  },
+  {
+    "input": "test@mail_ru.com",
+    "expected": null
+  },
+  {
+    "input": "test mail@mail.ru",
+    "expected": null
+  },
+  {
+    "input": "test@ mail.ru",
+    "expected": null
+  },
+  {
+    "input": "test name@mail.ru",
+    "expected": null
+  },
+  {
+    "input": "test​@mail.ru",
+    "expected": null
+  },
+  {
+    "input": "test@@mail.ru",
+    "expected": null
+  },
+  {
+    "input": "testmail.ru",
+    "expected": null
+  },
+  {
+    "input": "test@localhost",
+    "expected": null
+  },
+  {
+    "input": "@mail.ru",
+    "expected": null
+  },
+  {
+    "input": "test@",
+    "expected": null
+  },
+  {
+    "input": "test@127.0.0.1",
+    "expected": null
+  },
+  {
+    "input": "\"test\"@mail.ru",
+    "expected": null
+  },
+  {
+    "input": "Name <test@mail.ru>",
+    "expected": null
+  },
+  {
+    "input": "test@mail.ru,other@mail.ru",
+    "expected": null
+  },
+  {
+    "input": "test@mail.ru\u0000",
+    "expected": null
+  },
+  {
+    "input": "test😀@mail.ru",
+    "expected": null
+  },
+  {
+    "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@example.com",
+    "expected": null
+  },
+  {
+    "input": "test@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.com",
+    "expected": null
+  },
+  {
+    "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "expected": null
+  },
+  {
+    "input": "test@mail.ru",
+    "expected": "test@mail.ru"
+  },
+  {
+    "input": "﻿test@mail.ru",
+    "expected": null
+  },
+  {
+    "input": "test@mail.ru﻿",
+    "expected": null
+  },
+  {
+    "input": "\u001ctest@mail.ru",
+    "expected": null
+  },
+  {
+    "input": "                                                                                                                                                                                                                                                                                                                                 test@mail.ru",
+    "expected": "test@mail.ru"
+  }
+]

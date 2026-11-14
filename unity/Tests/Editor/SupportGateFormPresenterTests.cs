@@ -135,6 +135,42 @@ namespace Hooligapps.SupportGate.Tests
         }
 
         [UnityTest]
+        public IEnumerator InvalidEmailBlocksTheRequest()
+        {
+            yield return new EnterPlayMode();
+            var go = new GameObject("support gate test runner");
+            var runner = go.AddComponent<SupportGateTestRunner>();
+            var view = new View { Root = go };
+            var transport = new FakeTransport(request => request.Url.EndsWith("/v1/form", StringComparison.Ordinal)
+                ? new SupportGateHttpResponse(200, Json.Form)
+                : new SupportGateHttpResponse(201, Json.Ticket));
+            var client = new SupportGateClient("https://support.example", SupportGateSession.FromToken("t"), transport);
+            using (var presenter = new SupportGateFormPresenter<GameObject>(client, view, new Host(), runner))
+            {
+                presenter.Open();
+                yield return null;
+                foreach (var email in new[] { "собачка@mail.ru", ".test@mail.ru", "test.@mail.ru",
+                    "test..name@mail.ru", "test@-mail.ru", "test mail@mail.ru", "\uFEFFtest@mail.ru",
+                    "\u001Ctest@mail.ru", new string('a', 65) + "@mail.ru" })
+                {
+                    view.Values = Filled();
+                    view.Values.Email = email;
+                    view.RaiseSubmit();
+                    yield return null;
+                    Assert.IsTrue(view.Errors.ContainsKey("email"), email);
+                    Assert.AreEqual(0, transport.CountOf("/v1/tickets"));
+                }
+                view.Values.Email = "\u0085test@mail.ru\u0085";
+                view.RaiseSubmit();
+                yield return null;
+                Assert.AreEqual(1, transport.CountOf("/v1/tickets"));
+                StringAssert.Contains("\"email\":\"test@mail.ru\"", Encoding.UTF8.GetString(transport.Last.Body));
+            }
+            UnityEngine.Object.DestroyImmediate(go);
+            yield return new ExitPlayMode();
+        }
+
+        [UnityTest]
         public IEnumerator EmptyRequiredFieldsBlockTheRequest()
         {
             yield return new EnterPlayMode();

@@ -6,8 +6,8 @@
 
 ## Установка
 
-1. Установите UPM-пакет версии `0.4.0` через **Add package from git URL**:
-   `https://github.com/hooligapps/support-gate-sdk.git?path=/unity#v0.4.0`.
+1. Установите UPM-пакет версии `0.4.2` через **Add package from git URL**:
+   `https://github.com/hooligapps/support-gate-sdk.git?path=/unity#v0.4.2`.
    Этот тег содержит сборку `Hooligapps.SupportGate.Prefabs`.
 2. Импортируйте [SupportGate-UGUI.unitypackage](../dist/SupportGate-UGUI.unitypackage)
    через **Assets → Import Package → Custom Package**, выбрав все файлы.

@@ -17,7 +17,9 @@ namespace Hooligapps.SupportGate.UI
     /// </summary>
     public sealed class SupportGateFormPresenter<TRoot> : IDisposable
     {
-        private static readonly Regex EmailPattern = new Regex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$");
+        // ASCII dot-atom addresses, matching the API and JS form validators.
+        private static readonly Regex EmailPattern = new Regex(
+            @"\A(?=.{1,254}\z)(?=.{1,64}@)[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\z");
 
         private readonly SupportGateClient _client;
         private readonly ISupportGateFormView<TRoot> _view;

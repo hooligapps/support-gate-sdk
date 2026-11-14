@@ -23,6 +23,13 @@ import { Strings, strings } from './i18n';
 const ISSUE_KEY_POLLS = 6;
 const ISSUE_KEY_POLL_MS = 2000;
 
+// ASCII dot-atom addresses, matching the API and Unity form validators.
+const EMAIL_RE = /^(?=.{1,254}$)(?=.{1,64}@)[A-Za-z0-9!#$%&'*+\/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+\/=?^_`{|}~-]+)*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/;
+// Unicode White_Space, matching Python and Unity rather than JS's trim().
+function trimEmail(value: string): string {
+  return value.replace(/^[\x09-\x0d \x85\xa0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+|[\x09-\x0d \x85\xa0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$/g, '');
+}
+
 export interface SupportFormOptions extends TargetOptions {
   /** Скрывает уже заданные корректные поля, оставляя описание и вложения. */
   compact?: boolean;
@@ -327,7 +334,7 @@ export class SupportForm {
       }
     }
     if (fields.email) {
-      fields.email.field.hidden = fields.email.input.readOnly && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(fields.email.input.value);
+      fields.email.field.hidden = fields.email.input.readOnly && EMAIL_RE.test(fields.email.input.value);
       if (fields.email.field.hidden) addSummary(fields.email, `${this.text.email}: ${fields.email.input.value}`);
     }
     if (summary.childElementCount) this.body.insertBefore(summary, this.body.firstChild);
@@ -365,13 +372,22 @@ export class SupportForm {
   private emailField(config: FormConfig): Field | null {
     const field = this.input('email', this.text.email, 'email', { maxlength: '320' });
     if (config.prefill.email) {
-      (field.input as HTMLInputElement).value = config.prefill.email;
+      field.input.value = trimEmail(config.prefill.email);
     }
     if (config.prefill.email_locked) {
       // Адрес подтверждён бэкендом игры — показываем, но править не даём.
       field.input.setAttribute('readonly', 'readonly');
     }
     field.field.appendChild(el('div', { class: 'sg-hint' }, [this.text.emailHint]));
+    field.input.addEventListener('blur', () => {
+      field.input.value = trimEmail(field.input.value);
+      const message = !field.input.value ? this.text.required
+        : !EMAIL_RE.test(field.input.value) ? this.text.invalidEmail : '';
+      field.field.querySelector('.sg-error')?.remove();
+      field.field.classList.toggle('sg-invalid', !!message);
+      field.input.setAttribute('aria-invalid', String(!!message));
+      if (message) field.field.appendChild(el('div', { class: 'sg-error', role: 'alert' }, [message]));
+    });
     return field;
   }
 
@@ -629,6 +645,7 @@ export class SupportForm {
     const fail = (field: Field, message: string) => {
       this.revealField(field.field, field.id);
       field.field.classList.add('sg-invalid');
+      field.input.setAttribute('aria-invalid', 'true');
       field.field.appendChild(el('div', { class: 'sg-error' }, [message]));
       invalid = invalid ?? field.field;
     };
@@ -645,10 +662,11 @@ export class SupportForm {
 
     let email = '';
     if (fields.email) {
-      email = fields.email.input.value.trim();
+      email = trimEmail(fields.email.input.value);
+      fields.email.input.value = email;
       if (!email) {
         fail(fields.email, t.required);
-      } else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      } else if (!EMAIL_RE.test(email)) {
         fail(fields.email, t.invalidEmail);
       }
     }
@@ -692,7 +710,10 @@ export class SupportForm {
     const errors = this.body.querySelectorAll('.sg-error');
     for (let i = 0; i < errors.length; i += 1) errors[i].remove();
     const invalid = this.body.querySelectorAll('.sg-invalid');
-    for (let i = 0; i < invalid.length; i += 1) invalid[i].classList.remove('sg-invalid');
+    for (let i = 0; i < invalid.length; i += 1) {
+      invalid[i].classList.remove('sg-invalid');
+      invalid[i].querySelector('[aria-invalid]')?.removeAttribute('aria-invalid');
+    }
   }
 
   private setSubmitting(active: boolean): void {
